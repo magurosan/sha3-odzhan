@@ -154,7 +154,8 @@ void usage (void)
   printf ("\n  usage: sha3_test -t <type> -f <file> -s <string>\n");
   printf ("\n  -t <type>   Type is 0=SHA-224, 1=SHA-256 (default), 2=SHA-384, 3=SHA-512");
   printf ("\n  -s <string> Derive SHA-3 hash of <string>");
-  printf ("\n  -f <file>   Derive SHA-3 hash of <file>\n");
+  printf ("\n  -f <file>   Derive SHA-3 hash of <file>");
+  printf ("\n  -x          Run tests\n");
   exit (0);
 }
 
@@ -183,6 +184,9 @@ int main (int argc, char *argv[])
         case 't':
           type=atoi(getparam (argc, argv, &i));
           break;
+        case 'x':
+          test=1;
+          break;
         default:
           usage ();
           break;
@@ -192,7 +196,7 @@ int main (int argc, char *argv[])
   
   if (test) {
     if (!run_tests()) {
-      printf ("  [ self-test OK!\n");
+      printf ("\n  [ self-test OK!\n");
     }
   } else if (str!=NULL) {
     SHA3_string (str, type);

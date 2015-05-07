@@ -26,12 +26,20 @@ SHA3_512_DIGEST_LENGTH	EQU	64
 SHA3_512_CBLOCK	        EQU	72
 
 SHA3_CTX	struct 
-  state	  dq SHA3_STATE_LEN dup (?)
-  index	  dd	?
-  dgstlen	dq	?
-  rounds	dd	?
-  blklen	dq	?
-  blk	    db 256 dup (?)
+  union state
+    v8	byte SHA3_STATE_LEN*8 dup (?)
+    v32	dword SHA3_STATE_LEN*4 dup (?)
+    v64	qword SHA3_STATE_LEN dup (?)
+  ends
+  index	dword	?
+  dgstlen	qword	?
+  rounds	dword	?
+  blklen	qword	?
+  union blk
+    v8	byte 256 dup (?)
+    v32	dword 256/4 dup (?)
+    v64	qword 256/8 dup (?)
+  ends
 SHA3_CTX	ends
 
 endif

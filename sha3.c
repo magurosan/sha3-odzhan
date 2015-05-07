@@ -58,20 +58,20 @@ void SHA3_Transform (SHA3_CTX *ctx)
 {
   uint32_t i, j, round;
   uint64_t t, bc[5];
-  uint64_t *st=ctx->state;
-  uint64_t *p=(uint64_t*)ctx->blk;
+  uint64_t *st=(uint64_t*)ctx->state.v64;
   
   // xor block with state
-  for (i=0; i<ctx->blklen/8; i++) {
-    st[i] ^= p[i];
+  for (i=0; i<ctx->blklen; i++) {
+    ctx->state.v8[i] ^= ctx->blk.v8[i];
   }
+  
   for (round = 0; round < ctx->rounds; round++) 
   {
     // Theta
-    for (i = 0; i < 5; i++) {     
+    for (i=0; i<5; i++) {     
       bc[i] = st[i] ^ st[i + 5] ^ st[i + 10] ^ st[i + 15] ^ st[i + 20];
     }
-    for (i = 0; i < 5; i++) {
+    for (i=0; i<5; i++) {
       t = bc[(i + 4) % 5] ^ ROTL64(bc[(i + 1) % 5], 1);
       for (j = 0; j < 25; j += 5) {
         st[j + i] ^= t;
@@ -114,7 +114,7 @@ void SHA3_Update (SHA3_CTX* ctx, void *in, size_t inlen) {
       SHA3_Transform (ctx);           // compress
       ctx->index = 0;                 // counter to zero
     }
-    ctx->blk[ctx->index++] = x[i];
+    ctx->blk.v8[ctx->index++] = x[i];
   }
 }
 
@@ -123,16 +123,16 @@ void SHA3_Final (void* dgst, SHA3_CTX* ctx)
   // add 3 bits, Keccak uses 1
   // a lot of online implementations are using 1 instead of 6
   // since the NIST specifications haven't been finalized.
-  ctx->blk[ctx->index++] = 6;
+  ctx->blk.v8[ctx->index++] = 6;
   
   // fill any remaining space with zeros
   while (ctx->index < ctx->blklen) {
-    ctx->blk[ctx->index++] = 0;
+    ctx->blk.v8[ctx->index++] = 0;
   }
   // or the end bit
-  ctx->blk[ctx->blklen-1] |= 0x80;
+  ctx->blk.v8[ctx->blklen-1] |= 0x80;
   // update context
   SHA3_Transform (ctx);
   // copy digest to buffer
-  memcpy (dgst, (uint8_t*)ctx->state, ctx->dgstlen);
+  memcpy (dgst, ctx->state.v8, ctx->dgstlen);
 }

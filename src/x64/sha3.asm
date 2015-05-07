@@ -92,7 +92,7 @@ update_loop:
     cmp    ecx, eax
     cmovae ecx, eax
     ; memcpy ((void*)&ctx->buf[idx], p, r);
-    lea    rdi, [rbx][SHA3_CTX.blk][rdx]
+    lea    rdi, [rbx][SHA3_CTX.blk.v8][rdx]
     ; idx += r
     add    edx, ecx
     ; len -= r
@@ -135,7 +135,7 @@ SHA3_Final proc
     mov    rbx, rcx   ; rbx = dgst
     mov    rsi, rdx   ; rsi = ctx
 
-    lea    rdi, [rsi][SHA3_CTX.blk]
+    lea    rdi, [rsi][SHA3_CTX.blk.v8]
     mov    rcx, [rsi][SHA3_CTX.blklen]
     mov    eax, [rsi][SHA3_CTX.index]
     sub    ecx, eax
@@ -146,7 +146,7 @@ SHA3_Final proc
     mov    rdi, rbx
     mov    rcx, rdx
     
-    lea    rax, [rsi][SHA3_CTX.blk   ]
+    lea    rax, [rsi][SHA3_CTX.blk.v8]
     mov    ebx, [rsi][SHA3_CTX.index ]
     mov    rdx, [rsi][SHA3_CTX.blklen]
     
@@ -203,19 +203,19 @@ SHA3_Transform proc
     
     mov    rnds, [rbx][SHA3_CTX.rounds]
 
-    ; for (i=0; i<ctx->buflen/8; i++) 
-    ;   st[i] ^= p[i];
-    lea    rdi, [rbx][SHA3_CTX.state ]
-    lea    rsi, [rbx][SHA3_CTX.blk   ]
+    ; for (i=0; i<ctx->blklen; i++) {
+    ;   ctx->state.v8[i] ^= ctx->blk.v8[i];
+    ; }
+    lea    rdi, [rbx][SHA3_CTX.state.v8]
+    lea    rsi, [rbx][SHA3_CTX.blk.v8]
     mov    rcx, [rbx][SHA3_CTX.blklen]
-    shr    ecx, 3    ; /= 8
-xor_buf:
-    lodsq
-    xor    rax, [rdi]
-    stosq
-    loop   xor_buf
+xor_state:
+    lodsb
+    xor    al, byte ptr[rdi]
+    stosb
+    loop   xor_state
 
-    lea    _st, [rbx][SHA3_CTX.state]
+    lea    _st, [rbx][SHA3_CTX.state.v8]
     mov    _bc, rsp
     
     ; ===========================================

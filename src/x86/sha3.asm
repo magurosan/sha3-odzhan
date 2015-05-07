@@ -168,20 +168,18 @@ SHA3_Transform proc
     
     mov    eax, [ebx][SHA3_CTX.rounds]
     mov    [esp][SHA3_WS.rnds], eax
+    
+    ; for (i=0; i<ctx->blklen; i++) {
+    ;   ctx->state.v8[i] ^= ctx->blk.v8[i];
+    ; }
     lea    edi, [ebx][SHA3_CTX.state]
     lea    esi, [ebx][SHA3_CTX.blk]
     mov    ecx, [ebx][SHA3_CTX.blklen]
-    shr    ecx, 3    ; /= 8
-    pxor   mm1, mm1
-xor_buf:
-    movq   mm0, [esi]
-    pxor   mm0, [edi]
-    movq   [edi], mm0
-    movq   [esi], mm1
-    add    esi, 8
-    add    edi, 8
-    dec    ecx
-    jnz    xor_buf
+xor_state:
+    lodsb
+    xor    al, byte ptr[edi]
+    stosb
+    loop   xor_state
     
     lea    _st, [ebx][SHA3_CTX.state]
     lea    _bc, [esp][SHA3_WS.bc]

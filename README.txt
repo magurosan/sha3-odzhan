@@ -23,7 +23,7 @@ The code is public domain, feel free to do with as you wish.
 
 May 2015
   * simplified buffering/padding in SHA3_Update and SHA3_Final
-  * corrected padding error in SHA3_Final pointed out by mpancorbo
+  * corrected errors in SHA3_Transform and SHA3_Final pointed out by mpancorbo
 
 April 2015
   * first release
