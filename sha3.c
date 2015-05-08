@@ -109,7 +109,7 @@ void SHA3_Update (SHA3_CTX* ctx, void *in, size_t inlen) {
   // update buffer and state
   for (i=0; i<inlen; i++) {
     // absorb byte
-    ctx->blk.v8[ctx->index++] ^= x[i];
+    ctx->blk.v8[ctx->index++] = x[i];
     
     if (ctx->index == ctx->blklen) {  // buffer full ?
       SHA3_Transform (ctx);           // compress
