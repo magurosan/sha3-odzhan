@@ -78,30 +78,25 @@ SHA3_Init endp
   public SHA3_Update
 SHA3_Update proc
     pushad
-    mov    ebx, [esp+32+4]             ; ctx
-    mov    edx, [ebx][SHA3_CTX.index]  ; idx
-    mov    esi, [esp+32+8]             ; input
-    mov    eax, [esp+32+12]            ; len
-    .while 1
-      ; r = MIN(len, ctx->buflen - idx);
-      mov    ecx, [ebx][SHA3_CTX.blklen]
-      sub    ecx, edx
-      cmp    ecx, eax
-      cmovae ecx, eax
-      ; memcpy ((void*)&ctx->buf[idx], p, r);
-      lea    edi, [ebx][SHA3_CTX.blk][edx]
-      ; idx += r
-      add    edx, ecx
-      ; len -= r
-      sub    eax, ecx
-      rep    movsb
-      ; if ((idx + r) < ctx->buflen) break;
-      .break .if edx < [ebx][SHA3_CTX.blklen]
-      push   ebx
-      call   SHA3_Transform
-      xor    edx, edx
-    .endw
-    mov   [ebx][SHA3_CTX.index], edx
+    mov    ebx, [esp+32+4]               ; ctx
+    lea    edi, [ebx][SHA3_CTX.state.v8] ;
+    mov    edx, [ebx][SHA3_CTX.index]    ; idx
+    mov    esi, [esp+32+8]               ; input
+    mov    ecx, [esp+32+12]              ; len
+    jecxz  exit_update
+absorb_input:
+    cmp    edx, [ebx][SHA3_CTX.blklen]
+    jne    absorb_byte
+    push   ebx
+    call   SHA3_Transform
+    xor    edx, edx
+absorb_byte:
+    lodsb
+    xor    byte ptr[edi+edx], al
+    inc    edx
+    loop   absorb_input
+    mov    [ebx][SHA3_CTX.index], edx
+exit_update:
     popad
     ret
 SHA3_Update endp
@@ -116,20 +111,13 @@ SHA3_Final proc
     pushad
 
     mov    esi, [esp+32+8] ; ctx
-    lea    edi, [esi][SHA3_CTX.blk]
-    mov    ecx, [esi][SHA3_CTX.blklen]
-    sub    ecx, [esi][SHA3_CTX.index]
-    add    edi, [esi][SHA3_CTX.index]
-    xor    eax, eax
-    rep    stosb
-
     mov    edi, [esp+32+4] ; dgst
     
-    lea    eax, [esi][SHA3_CTX.blk]
+    lea    eax, [esi][SHA3_CTX.state.v8]
     mov    ebx, [esi][SHA3_CTX.index]
     mov    ecx, [esi][SHA3_CTX.blklen]
-    mov    byte ptr[eax+ebx  ], 6
-    or     byte ptr[eax+ecx-1], 80h
+    xor    byte ptr[eax+ebx  ], 6
+    xor    byte ptr[eax+ecx-1], 80h
     
     push   esi
     call   SHA3_Transform
@@ -168,19 +156,6 @@ SHA3_Transform proc
     
     mov    eax, [ebx][SHA3_CTX.rounds]
     mov    [esp][SHA3_WS.rnds], eax
-    
-    ; for (i=0; i<ctx->blklen; i++) {
-    ;   ctx->state.v8[i] ^= ctx->blk.v8[i];
-    ; }
-    lea    edi, [ebx][SHA3_CTX.state]
-    lea    esi, [ebx][SHA3_CTX.blk]
-    mov    ecx, [ebx][SHA3_CTX.blklen]
-xor_state:
-    lodsb
-    xor    al, byte ptr[edi]
-    stosb
-    loop   xor_state
-    
     lea    _st, [ebx][SHA3_CTX.state]
     lea    _bc, [esp][SHA3_WS.bc]
     xor    r, r

@@ -12,22 +12,22 @@ void SHA3_Init (SHA3_CTX *ctx, int type)
   
   switch (type)
   {
-  case SHA3_224:
-    ctx->blklen  = SHA3_224_CBLOCK;
-    ctx->dgstlen = SHA3_224_DIGEST_LENGTH;
-    break;
-  case SHA3_384:
-    ctx->blklen  = SHA3_384_CBLOCK;
-    ctx->dgstlen = SHA3_384_DIGEST_LENGTH;
-    break;
-  case SHA3_512:
-    ctx->blklen  = SHA3_512_CBLOCK;
-    ctx->dgstlen = SHA3_512_DIGEST_LENGTH;
-    break;
-  default:
-    ctx->blklen  = SHA3_256_CBLOCK;
-    ctx->dgstlen = SHA3_256_DIGEST_LENGTH;
-    break;
+    case SHA3_224:
+      ctx->blklen  = SHA3_224_CBLOCK;
+      ctx->dgstlen = SHA3_224_DIGEST_LENGTH;
+      break;
+    case SHA3_384:
+      ctx->blklen  = SHA3_384_CBLOCK;
+      ctx->dgstlen = SHA3_384_DIGEST_LENGTH;
+      break;
+    case SHA3_512:
+      ctx->blklen  = SHA3_512_CBLOCK;
+      ctx->dgstlen = SHA3_512_DIGEST_LENGTH;
+      break;
+    default:
+      ctx->blklen  = SHA3_256_CBLOCK;
+      ctx->dgstlen = SHA3_256_DIGEST_LENGTH;
+      break;
   }   
 }
 
@@ -44,13 +44,11 @@ const uint64_t keccakf_rndc[24] =
 
 const int keccakf_rotc[24] = 
 { 1,  3,  6,  10, 15, 21, 28, 36, 45, 55, 2,  14, 
-  27, 41, 56, 8,  25, 43, 62, 18, 39, 61, 20, 44
-};
+  27, 41, 56, 8,  25, 43, 62, 18, 39, 61, 20, 44 };
 
 const int keccakf_piln[24] = 
 { 10, 7,  11, 17, 18, 3, 5,  16, 8,  21, 24, 4, 
-  15, 23, 19, 13, 12, 2, 20, 14, 22, 9,  6,  1 
-};
+  15, 23, 19, 13, 12, 2, 20, 14, 22, 9,  6,  1  };
 
 #define ROTL64(x, y) (((x) << (y)) | ((x) >> (64 - (y))))
 
@@ -59,11 +57,6 @@ void SHA3_Transform (SHA3_CTX *ctx)
   uint32_t i, j, round;
   uint64_t t, bc[5];
   uint64_t *st=(uint64_t*)ctx->state.v64;
-  
-  // xor block with state
-  for (i=0; i<ctx->blklen; i++) {
-    ctx->state.v8[i] ^= ctx->blk.v8[i];
-  }
   
   for (round = 0; round < ctx->rounds; round++) 
   {
@@ -114,23 +107,19 @@ void SHA3_Update (SHA3_CTX* ctx, void *in, size_t inlen) {
       SHA3_Transform (ctx);           // compress
       ctx->index = 0;                 // counter to zero
     }
-    ctx->blk.v8[ctx->index++] = x[i];
+    // absorb byte
+    ctx->state.v8[ctx->index++] ^= x[i];
   }
 }
 
 void SHA3_Final (void* dgst, SHA3_CTX* ctx)
 {
-  // add 3 bits, Keccak uses 1
+  // absorb 3 bits, Keccak uses 1
   // a lot of online implementations are using 1 instead of 6
   // since the NIST specifications haven't been finalized.
-  ctx->blk.v8[ctx->index++] = 6;
-  
-  // fill any remaining space with zeros
-  while (ctx->index < ctx->blklen) {
-    ctx->blk.v8[ctx->index++] = 0;
-  }
-  // or the end bit
-  ctx->blk.v8[ctx->blklen-1] |= 0x80;
+  ctx->state.v8[ctx->index++]  ^= 6;
+  // absorb end bit
+  ctx->state.v8[ctx->blklen-1] ^= 0x80;
   // update context
   SHA3_Transform (ctx);
   // copy digest to buffer

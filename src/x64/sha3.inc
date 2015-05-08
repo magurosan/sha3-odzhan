@@ -27,19 +27,15 @@ SHA3_512_CBLOCK	        EQU	72
 
 SHA3_CTX	struct 
   union state
-    v8	byte SHA3_STATE_LEN*8 dup (?)
+    v8	byte  SHA3_STATE_LEN*8 dup (?)
     v32	dword SHA3_STATE_LEN*4 dup (?)
     v64	qword SHA3_STATE_LEN dup (?)
   ends
-  index	dword	?
-  dgstlen	qword	?
+  
+  index	  dword	?
+  dgstlen	dword	?
   rounds	dword	?
-  blklen	qword	?
-  union blk
-    v8	byte 256 dup (?)
-    v32	dword 256/4 dup (?)
-    v64	qword 256/8 dup (?)
-  ends
+  blklen	dword	?
 SHA3_CTX	ends
 
 endif

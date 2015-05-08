@@ -38,15 +38,9 @@ typedef struct _SHA3_CTX {
   } state;
   
   uint32_t index;
-  size_t   dgstlen;
+  uint32_t dgstlen;
   uint32_t rounds;
-  size_t   blklen;
-  
-  union {
-    uint8_t  v8[256];
-    uint32_t v32[256/4];
-    uint64_t v64[256/8];
-  } blk;
+  uint32_t blklen;
 } SHA3_CTX;
 #pragma pack(pop)
 

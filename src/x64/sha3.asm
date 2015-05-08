@@ -56,8 +56,8 @@ SHA3_Init proc
     mov    al, SHA3_512_CBLOCK
     mov    cl, SHA3_512_DIGEST_LENGTH
 exit_init:
-    mov    [rdi][SHA3_CTX.blklen ], rax
-    mov    [rdi][SHA3_CTX.dgstlen], rcx
+    mov    [rdi][SHA3_CTX.blklen ], eax
+    mov    [rdi][SHA3_CTX.dgstlen], ecx
     mov    [rdi][SHA3_CTX.rounds ], SHA3_ROUNDS
     ; restore
     pop    rdi
@@ -80,35 +80,30 @@ SHA3_Update proc
     push   rdx
     push   rsi
     push   rdi
-    ; -------------
-    mov    rbx, rcx         ; ctx
-    mov    rsi, rdx         ; input
-    mov    rax, r8          ; len
-    mov    edx, [rbx][SHA3_CTX.index]  ; idx
-update_loop:
-    ; r = MIN(len, ctx->buflen - idx);
-    mov    rcx, [rbx][SHA3_CTX.blklen]
-    sub    ecx, edx
-    cmp    ecx, eax
-    cmovae ecx, eax
-    ; memcpy ((void*)&ctx->buf[idx], p, r);
-    lea    rdi, [rbx][SHA3_CTX.blk.v8][rdx]
-    ; idx += r
-    add    edx, ecx
-    ; len -= r
-    sub    eax, ecx
-    rep    movsb
-    ; if ((idx + r) < ctx->buflen) break;
-    cmp    rdx, [rbx][SHA3_CTX.blklen]
-    jb     save_index
-
+    ; --------
+    ; inlen!=0?
+    test   r8, r8  
+    jz     exit_update
+    
+    mov    rsi, rdx    ; rsi = input
+    mov    rbx, rcx    ; rbx = ctx
+    lea    rdi, [rbx][SHA3_CTX.state.v8] ;
+    mov    edx, [rbx][SHA3_CTX.index]    ; idx
+absorb_input:
+    cmp    edx, [rbx][SHA3_CTX.blklen]
+    jne    absorb_byte
     mov    rcx, rbx
     call   SHA3_Transform
     xor    edx, edx
-    jmp    update_loop
-save_index:  
+absorb_byte:
+    lodsb
+    xor    byte ptr[rdi+rdx], al
+    inc    edx
+    dec    r8
+    jnz    absorb_input
     mov    [rbx][SHA3_CTX.index], edx
-    ; -------
+exit_update:
+    ; --------
     pop    rdi
     pop    rsi
     pop    rdx
@@ -132,30 +127,18 @@ SHA3_Final proc
     push   rsi
     push   rdi
     ; -------------
-    mov    rbx, rcx   ; rbx = dgst
-    mov    rsi, rdx   ; rsi = ctx
-
-    lea    rdi, [rsi][SHA3_CTX.blk.v8]
-    mov    rcx, [rsi][SHA3_CTX.blklen]
-    mov    eax, [rsi][SHA3_CTX.index]
-    sub    ecx, eax
-    add    rdi, rax
-    xor    eax, eax
-    rep    stosb
+    mov    rdi, rcx   ; dgst
+    lea    rsi, [rdx][SHA3_CTX.state.v8]
+    mov    eax, [rdx][SHA3_CTX.index ]
+    mov    ebx, [rdx][SHA3_CTX.blklen]
     
-    mov    rdi, rbx
+    xor    byte ptr[rsi+rax  ], 6
+    xor    byte ptr[rsi+rbx-1], 80h
+
     mov    rcx, rdx
-    
-    lea    rax, [rsi][SHA3_CTX.blk.v8]
-    mov    ebx, [rsi][SHA3_CTX.index ]
-    mov    rdx, [rsi][SHA3_CTX.blklen]
-    
-    mov    byte ptr[rax+rbx  ], 6
-    or     byte ptr[rax+rdx-1], 80h
-
     call   SHA3_Transform
     
-    mov    rcx, [rsi][SHA3_CTX.dgstlen]
+    mov    ecx, [rdx][SHA3_CTX.dgstlen]
     rep    movsb
     ; -------------
     pop    rdi
@@ -202,19 +185,6 @@ SHA3_Transform proc
     mov    rbx, rcx                ; ctx
     
     mov    rnds, [rbx][SHA3_CTX.rounds]
-
-    ; for (i=0; i<ctx->blklen; i++) {
-    ;   ctx->state.v8[i] ^= ctx->blk.v8[i];
-    ; }
-    lea    rdi, [rbx][SHA3_CTX.state.v8]
-    lea    rsi, [rbx][SHA3_CTX.blk.v8]
-    mov    rcx, [rbx][SHA3_CTX.blklen]
-xor_state:
-    lodsb
-    xor    al, byte ptr[rdi]
-    stosb
-    loop   xor_state
-
     lea    _st, [rbx][SHA3_CTX.state.v8]
     mov    _bc, rsp
     
