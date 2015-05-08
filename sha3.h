@@ -23,9 +23,9 @@
 #define SHA3_384_DIGEST_LENGTH  48
 #define SHA3_384_CBLOCK        104
 
-#define SHA3_512                3
-#define SHA3_512_DIGEST_LENGTH 64
-#define SHA3_512_CBLOCK        72
+#define SHA3_512                 3
+#define SHA3_512_DIGEST_LENGTH  64
+#define SHA3_512_CBLOCK         72
 
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 

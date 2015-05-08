@@ -58,6 +58,11 @@ void SHA3_Transform (SHA3_CTX *ctx)
   uint64_t t, bc[5];
   uint64_t *st=(uint64_t*)ctx->state.v64;
   
+  // xor state with block
+  /*for (i=0; i<ctx->blklen; i++) {
+    ctx->state.v8[i] ^= ctx->blk.v8[i];
+  } */
+  
   for (round = 0; round < ctx->rounds; round++) 
   {
     // Theta
@@ -103,12 +108,13 @@ void SHA3_Update (SHA3_CTX* ctx, void *in, size_t inlen) {
 
   // update buffer and state
   for (i=0; i<inlen; i++) {
+    // absorb byte
+    ctx->state.v8[ctx->index++] ^= x[i];
+    
     if (ctx->index == ctx->blklen) {  // buffer full ?
       SHA3_Transform (ctx);           // compress
       ctx->index = 0;                 // counter to zero
     }
-    // absorb byte
-    ctx->state.v8[ctx->index++] ^= x[i];
   }
 }
 
