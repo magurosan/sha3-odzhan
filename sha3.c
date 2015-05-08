@@ -59,9 +59,9 @@ void SHA3_Transform (SHA3_CTX *ctx)
   uint64_t *st=(uint64_t*)ctx->state.v64;
   
   // xor state with block
-  /*for (i=0; i<ctx->blklen; i++) {
+  for (i=0; i<ctx->blklen; i++) {
     ctx->state.v8[i] ^= ctx->blk.v8[i];
-  } */
+  }
   
   for (round = 0; round < ctx->rounds; round++) 
   {
@@ -109,7 +109,7 @@ void SHA3_Update (SHA3_CTX* ctx, void *in, size_t inlen) {
   // update buffer and state
   for (i=0; i<inlen; i++) {
     // absorb byte
-    ctx->state.v8[ctx->index++] ^= x[i];
+    ctx->blk.v8[ctx->index++] ^= x[i];
     
     if (ctx->index == ctx->blklen) {  // buffer full ?
       SHA3_Transform (ctx);           // compress
@@ -123,9 +123,14 @@ void SHA3_Final (void* dgst, SHA3_CTX* ctx)
   // absorb 3 bits, Keccak uses 1
   // a lot of online implementations are using 1 instead of 6
   // since the NIST specifications haven't been finalized.
-  ctx->state.v8[ctx->index++]  ^= 6;
+  ctx->blk.v8[ctx->index++] = 6;
+  
+  // fill remaining space with zeros
+  while (ctx->index < ctx->blklen) {
+    ctx->blk.v8[ctx->index++] = 0;
+  }
   // absorb end bit
-  ctx->state.v8[ctx->blklen-1] ^= 0x80;
+  ctx->blk.v8[ctx->blklen-1] |= 0x80;
   // update context
   SHA3_Transform (ctx);
   // copy digest to buffer
