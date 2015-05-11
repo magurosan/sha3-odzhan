@@ -8,7 +8,6 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
-
 #include <sys/stat.h>
 #include <time.h>
 
@@ -155,13 +154,12 @@ void SHA3_file (char fn[], int type)
     SHA3_Init (&ctx, type);
     
     while (len = fread (buf, 1, BUFSIZ, fd)) {
-      if (total > 10000000 && (cmp % 10000000)==0) {
+      cmp += len;
+      if (total > 10000000 && (cmp % 10000000)==0 || cmp==total) {
         progress (cmp, total);
       }
       SHA3_Update (&ctx, buf, len);
-      cmp += len;
     }
-    progress (cmp, total);
     SHA3_Final (dgst, &ctx);
 
     fclose (fd);
