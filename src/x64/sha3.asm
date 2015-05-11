@@ -15,7 +15,7 @@ option casemap:none
 include sha3.inc
 
 .code
-
+  
 ; ***********************************************
 ;
 ; SHA3_Init (&ctx, int);
@@ -87,18 +87,21 @@ SHA3_Update proc
     
     mov    rsi, rdx    ; rsi = input
     mov    rbx, rcx    ; rbx = ctx
-    lea    rdi, [rbx][SHA3_CTX.state.v8] ;
+    lea    rdi, [rbx][SHA3_CTX.blk.v8]   ;
     mov    edx, [rbx][SHA3_CTX.index]    ; idx
 absorb_input:
+    ; absorb a byte
+    lodsb
+    mov    byte ptr[rdi+rdx], al
+    inc    edx
+    ; buffer full?
     cmp    edx, [rbx][SHA3_CTX.blklen]
-    jne    absorb_byte
+    jne    chk_len
+    ; compress
     mov    rcx, rbx
     call   SHA3_Transform
     xor    edx, edx
-absorb_byte:
-    lodsb
-    xor    byte ptr[rdi+rdx], al
-    inc    edx
+chk_len:
     dec    r8
     jnz    absorb_input
     mov    [rbx][SHA3_CTX.index], edx
@@ -128,17 +131,32 @@ SHA3_Final proc
     push   rdi
     ; -------------
     mov    rdi, rcx   ; dgst
-    lea    rsi, [rdx][SHA3_CTX.state.v8]
-    mov    eax, [rdx][SHA3_CTX.index ]
-    mov    ebx, [rdx][SHA3_CTX.blklen]
     
-    xor    byte ptr[rsi+rax  ], 6
-    xor    byte ptr[rsi+rbx-1], 80h
-
+    mov    eax, [rdx][SHA3_CTX.blklen]
+    mov    ecx, [rdx][SHA3_CTX.index ]
+    lea    rsi, [rdx][SHA3_CTX.blk.v8]
+    ; ctx->blk.v8[ctx->index++] = 6;
+    mov    byte ptr[rsi+rcx], 6
+    inc    ecx
+    ; while (ctx->index < ctx->blklen) {
+    ;   ctx->blk.v8[ctx->index++] = 0;
+    ; }
+zero_blk:
+    cmp    ecx, eax
+    jae    exit_zero
+    
+    mov    byte ptr[rsi+rcx], 0
+    inc    ecx
+    jmp    zero_blk
+exit_zero:
+    ; ctx->blk.v8[ctx->blklen-1] |= 0x80;
+    or     byte ptr[rsi+rax-1], 80h
+    ; SHA3_Transform (ctx);
     mov    rcx, rdx
     call   SHA3_Transform
-    
-    mov    ecx, [rdx][SHA3_CTX.dgstlen]
+    ; memcpy (dgst, ctx->state.v8, ctx->dgstlen);
+    mov    ecx, [rdx][SHA3_CTX.dgstlen ]
+    lea    rsi, [rdx][SHA3_CTX.state.v8]
     rep    movsb
     ; -------------
     pop    rdi
@@ -185,6 +203,16 @@ SHA3_Transform proc
     mov    rbx, rcx                ; ctx
     
     mov    rnds, [rbx][SHA3_CTX.rounds]
+    
+    lea    rsi, [rbx][SHA3_CTX.blk.v8]
+    lea    rdi, [rbx][SHA3_CTX.state.v8]
+    mov    ecx, [rbx][SHA3_CTX.blklen]
+xor_state:
+    lodsb
+    xor    al, [rdi]
+    stosb
+    loop   xor_state
+    
     lea    _st, [rbx][SHA3_CTX.state.v8]
     mov    _bc, rsp
     

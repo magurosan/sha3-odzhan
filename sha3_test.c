@@ -1,6 +1,6 @@
 
 
-// SHA-3 in C
+// Test unit for SHA-3 in C
 // Odzhan
 
 #include <ctype.h>
@@ -8,6 +8,9 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+
+#include <sys/stat.h>
+#include <time.h>
 
 #include "sha3.h"
 
@@ -106,6 +109,32 @@ void SHA3_string (char *str, int type)
   SHA3_print (dgst, ctx.dgstlen);
 }
 
+void progress (uint64_t fs_complete, uint64_t fs_total)
+{
+  uint32_t total, hours=0, minutes=0, seconds=0, speed, avg;
+  uint64_t pct;
+  static uint32_t start=0, current;
+  
+  if (start==0) {
+    start=time(0);
+    return;
+  }
+  
+  pct = (100 * fs_complete) / (1 * fs_total);
+  
+  total = (time(0) - start);
+  
+  if (total != 0) {
+    avg   = (total * (fs_total - fs_complete)) / fs_complete;
+    speed = (fs_complete / total);
+    
+    minutes = (avg / 60);
+    seconds = (avg % 60);
+  }
+  printf ("\rProcessed %llu MB out of %llu MB %lu MB/s : %llu%% complete. ETA: %02d:%02d",
+    fs_complete/1000/1000, fs_total/1000/1000, speed/1000/1000, pct, minutes, seconds);
+}
+
 // generate SHA-3 hash of file
 void SHA3_file (char fn[], int type)
 {
@@ -113,20 +142,31 @@ void SHA3_file (char fn[], int type)
   SHA3_CTX ctx;
   size_t   len;
   uint8_t  buf[BUFSIZ], dgst[256];
-
+  struct stat st;
+  uint32_t cmp=0, total=0;
+  
   fd = fopen (fn, "rb");
+  
   if (fd!=NULL)
   {
+    stat (fn, &st);
+    total=st.st_size;
+    
     SHA3_Init (&ctx, type);
     
     while (len = fread (buf, 1, BUFSIZ, fd)) {
+      if (total > 10000000 && (cmp % 10000000)==0) {
+        progress (cmp, total);
+      }
       SHA3_Update (&ctx, buf, len);
+      cmp += len;
     }
+    progress (cmp, total);
     SHA3_Final (dgst, &ctx);
 
     fclose (fd);
 
-    printf ("  [ SHA-3-%d (%s) = ", ctx.dgstlen*8, fn);
+    printf ("\n  [ SHA3-%d (%s) = ", ctx.dgstlen*8, fn);
     SHA3_print (dgst, ctx.dgstlen);
   } else {
     printf ("  [ unable to open %s\n", fn);
@@ -152,9 +192,9 @@ void usage (void)
   int i;
   
   printf ("\n  usage: sha3_test -t <type> -f <file> -s <string>\n");
-  printf ("\n  -t <type>   Type is 0=SHA-224, 1=SHA-256 (default), 2=SHA-384, 3=SHA-512");
-  printf ("\n  -s <string> Derive SHA-3 hash of <string>");
-  printf ("\n  -f <file>   Derive SHA-3 hash of <file>");
+  printf ("\n  -t <type>   Type is 0=SHA3-224, 1=SHA3-256 (default), 2=SHA3-384, 3=SHA3-512");
+  printf ("\n  -s <string> Derive SHA3 hash of <string>");
+  printf ("\n  -f <file>   Derive SHA3 hash of <file>");
   printf ("\n  -x          Run tests\n");
   exit (0);
 }
@@ -162,7 +202,7 @@ void usage (void)
 int main (int argc, char *argv[])
 {
   char opt;
-  int i, test=0, type=SHA3_256;
+  int i, test=0, type=SHA3_256, wc=0;
   char *file=NULL, *str=NULL;
   
   // for each argument
@@ -192,6 +232,10 @@ int main (int argc, char *argv[])
           break;
       }
     }
+    // if this is path, set wildcard to true
+    if (wc==0) {
+      wc=i;
+    }
   }
   
   if (test) {
@@ -200,8 +244,14 @@ int main (int argc, char *argv[])
     }
   } else if (str!=NULL) {
     SHA3_string (str, type);
-  } else if (file!=NULL) {
-    SHA3_file (file, type);
+  } else if (file!=NULL || wc!=0) {
+    if (wc!=0) {
+      while (argv[wc]!=NULL) {
+        SHA3_file (argv[wc++], type);
+      }
+    } else {
+      SHA3_file (file, type);
+    }
   } else {
     usage ();
   }

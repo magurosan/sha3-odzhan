@@ -124,7 +124,6 @@ void SHA3_Final (void* dgst, SHA3_CTX* ctx)
   // a lot of online implementations are using 1 instead of 6
   // since the NIST specifications haven't been finalized.
   ctx->blk.v8[ctx->index++] = 6;
-  
   // fill remaining space with zeros
   while (ctx->index < ctx->blklen) {
     ctx->blk.v8[ctx->index++] = 0;

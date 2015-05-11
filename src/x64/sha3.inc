@@ -36,6 +36,12 @@ SHA3_CTX	struct
   dgstlen	dword	?
   rounds	dword	?
   blklen	dword	?
+  
+  union blk
+    v8	byte  256 dup (?)
+    v32	dword 256/4 dup (?)
+    v64	qword 256/8 dup (?)
+  ends
 SHA3_CTX	ends
 
 endif
