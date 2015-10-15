@@ -100,9 +100,9 @@ void SHA3_Transform (SHA3_CTX *ctx)
   }
 }
 
-void SHA3_Update (SHA3_CTX* ctx, void *in, size_t inlen) {
+void SHA3_Update (SHA3_CTX* ctx, void *in, uint32_t inlen) {
   uint8_t *x;
-  size_t i;
+  uint32_t i;
   
   x = (uint8_t*)in;
 
