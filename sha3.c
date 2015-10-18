@@ -5,32 +5,6 @@
 
 #include "sha3.h"
 
-void SHA3_Init (SHA3_CTX *ctx, int type)
-{
-  memset (ctx, 0, sizeof (SHA3_CTX));
-  ctx->rounds = SHA3_ROUNDS;
-  
-  switch (type)
-  {
-    case SHA3_224:
-      ctx->blklen  = SHA3_224_CBLOCK;
-      ctx->dgstlen = SHA3_224_DIGEST_LENGTH;
-      break;
-    case SHA3_384:
-      ctx->blklen  = SHA3_384_CBLOCK;
-      ctx->dgstlen = SHA3_384_DIGEST_LENGTH;
-      break;
-    case SHA3_512:
-      ctx->blklen  = SHA3_512_CBLOCK;
-      ctx->dgstlen = SHA3_512_DIGEST_LENGTH;
-      break;
-    default:
-      ctx->blklen  = SHA3_256_CBLOCK;
-      ctx->dgstlen = SHA3_256_DIGEST_LENGTH;
-      break;
-  }   
-}
-
 const uint64_t keccakf_rndc[24] = 
 { 0x0000000000000001, 0x0000000000008082, 0x800000000000808a,
   0x8000000080008000, 0x000000000000808b, 0x0000000080000001,
@@ -59,8 +33,8 @@ void SHA3_Transform (SHA3_CTX *ctx)
   uint64_t *st=(uint64_t*)ctx->state.v64;
   
   // xor state with block
-  for (i=0; i<ctx->blklen; i++) {
-    ctx->state.v8[i] ^= ctx->blk.v8[i];
+  for (i=0; i<ctx->buflen; i++) {
+    ctx->state.v8[i] ^= ctx->buffer.v8[i];
   }
   
   for (round = 0; round < ctx->rounds; round++) 
@@ -100,38 +74,70 @@ void SHA3_Transform (SHA3_CTX *ctx)
   }
 }
 
-void SHA3_Update (SHA3_CTX* ctx, void *in, uint32_t inlen) {
-  uint8_t *x;
+void SHA3_Init (SHA3_CTX *ctx, int type)
+{
   uint32_t i;
   
-  x = (uint8_t*)in;
+  ctx->rounds = SHA3_ROUNDS;
+  ctx->index  = 0;
+  
+  for (i=0; i<SHA3_STATE_LEN; i++) {
+    ctx->state.v64[i] = 0;
+  }
+  
+  switch (type)
+  {
+    case SHA3_224:
+      ctx->buflen = SHA3_224_CBLOCK;
+      ctx->outlen = SHA3_224_DIGEST_LENGTH;
+      break;
+    case SHA3_384:
+      ctx->buflen = SHA3_384_CBLOCK;
+      ctx->outlen = SHA3_384_DIGEST_LENGTH;
+      break;
+    case SHA3_512:
+      ctx->buflen = SHA3_512_CBLOCK;
+      ctx->outlen = SHA3_512_DIGEST_LENGTH;
+      break;
+    default:
+      ctx->buflen = SHA3_256_CBLOCK;
+      ctx->outlen = SHA3_256_DIGEST_LENGTH;
+      break;
+  }   
+}
 
+void SHA3_Update (SHA3_CTX* ctx, void *in, uint32_t inlen) {
+  uint32_t i;
+  
   // update buffer and state
   for (i=0; i<inlen; i++) {
     // absorb byte
-    ctx->blk.v8[ctx->index++] = x[i];
+    ctx->buffer.v8[ctx->index++] = ((uint8_t*)in)[i];
     
-    if (ctx->index == ctx->blklen) {  // buffer full ?
-      SHA3_Transform (ctx);           // compress
-      ctx->index = 0;                 // counter to zero
+    if (ctx->index == ctx->buflen) {
+      SHA3_Transform (ctx);
+      ctx->index = 0;
     }
   }
 }
 
-void SHA3_Final (void* dgst, SHA3_CTX* ctx)
+void SHA3_Final (void* out, SHA3_CTX* ctx)
 {
+  uint32_t i;
   // absorb 3 bits, Keccak uses 1
   // a lot of online implementations are using 1 instead of 6
   // since the NIST specifications haven't been finalized.
-  ctx->blk.v8[ctx->index++] = 6;
+  ctx->buffer.v8[ctx->index++] = 6;
   // fill remaining space with zeros
-  while (ctx->index < ctx->blklen) {
-    ctx->blk.v8[ctx->index++] = 0;
+  while (ctx->index < ctx->buflen) {
+    ctx->buffer.v8[ctx->index++] = 0;
   }
   // absorb end bit
-  ctx->blk.v8[ctx->blklen-1] |= 0x80;
+  ctx->buffer.v8[ctx->buflen-1] |= 0x80;
   // update context
   SHA3_Transform (ctx);
   // copy digest to buffer
-  memcpy (dgst, ctx->state.v8, ctx->dgstlen);
+  for (i=0; i<ctx->outlen; i++) {
+    ((uint8_t*)out)[i] = ctx->state.v8[i];
+  }
 }

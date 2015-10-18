@@ -29,24 +29,30 @@
 
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 
+typedef union sha3_st_t {
+  uint8_t  v8[SHA3_STATE_LEN*8];
+  uint16_t v16[SHA3_STATE_LEN*4];
+  uint32_t v32[SHA3_STATE_LEN*2];
+  uint64_t v64[SHA3_STATE_LEN];
+} sha3_st;
+
+typedef union sha3_buf_t {
+  uint8_t  v8[256];
+  uint16_t v16[256/2];
+  uint32_t v32[256/4];
+  uint64_t v64[256/8];
+} sha3_buf;
+
 #pragma pack(push, 1)
 typedef struct _SHA3_CTX {
-  union {
-    uint8_t v8[SHA3_STATE_LEN*8];
-    uint32_t v32[SHA3_STATE_LEN*4];
-    uint64_t v64[SHA3_STATE_LEN];
-  } state;
+  sha3_st state;
   
   uint32_t index;
-  uint32_t dgstlen;
+  uint32_t outlen;
   uint32_t rounds;
-  uint32_t blklen;
+  uint32_t buflen;
   
-  union {
-    uint8_t v8[256];
-    uint32_t v32[256/4];
-    uint64_t v64[256/8];
-  } blk;
+  sha3_buf buffer;
 } SHA3_CTX;
 #pragma pack(pop)
 

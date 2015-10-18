@@ -71,7 +71,7 @@ int run_tests (void)
     
     hex2bin (tv, SHA3_dgst[i]);
     
-    if (memcmp (dgst, tv, ctx.dgstlen) != 0) {
+    if (memcmp (dgst, tv, ctx.outlen) != 0) {
       printf ("\nFailed for string \"%s\"", text[i]);
       ++fails;
     }
@@ -105,7 +105,7 @@ void SHA3_string (char *str, int type)
   SHA3_Update (&ctx, str, strlen (str));
   SHA3_Final (dgst, &ctx);
   
-  SHA3_print (dgst, ctx.dgstlen);
+  SHA3_print (dgst, ctx.outlen);
 }
 
 void progress (uint64_t fs_complete, uint64_t fs_total)
@@ -164,8 +164,8 @@ void SHA3_file (char fn[], int type)
 
     fclose (fd);
 
-    printf ("\n  [ SHA3-%d (%s) = ", ctx.dgstlen*8, fn);
-    SHA3_print (dgst, ctx.dgstlen);
+    printf ("\n  [ SHA3-%d (%s) = ", ctx.outlen*8, fn);
+    SHA3_print (dgst, ctx.outlen);
   } else {
     printf ("  [ unable to open %s\n", fn);
   }
