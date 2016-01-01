@@ -8,8 +8,8 @@
 
 #include <stdint.h>
 
-#define SHA3_ROUNDS       24
-#define SHA3_STATE_LEN    25
+#define SHA3_ROUNDS             24
+#define SHA3_STATE_LEN          25
 
 #define SHA3_224                 0
 #define SHA3_224_DIGEST_LENGTH  28
@@ -66,6 +66,12 @@ extern "C" {
 
 #ifdef __cplusplus
 }
+#endif
+
+#ifdef USE_ASM
+  #define SHA3_Init(x, y) SHA3_Initx(x, y)
+  #define SHA3_Update(x, y, z) SHA3_Updatex(x, y, z)
+  #define SHA3_Final(x, y) SHA3_Finalx(x, y)
 #endif
 
 #endif

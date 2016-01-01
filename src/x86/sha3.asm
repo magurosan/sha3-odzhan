@@ -1,6 +1,6 @@
 
 
-; SHA-3 in x86/MMX assembly
+; SHA-3 in x86/MMX assembly for MASM/JWASM
 ; Odzhan
 
 .686
@@ -13,6 +13,10 @@ option casemap:none
 
 include sha3.inc
 
+  public SHA3_Init
+  public SHA3_Update
+  public SHA3_Final
+  
 .code
 
 ; rotate mm0 left by bits in eax
@@ -34,7 +38,6 @@ rotl64 endp
 ; SHA3_Init (&ctx, int);
 ;
 ; ***********************************************
-  public SHA3_Init
 SHA3_Init proc
     pushad
     mov    edi, [esp+32+4]    ; context
@@ -63,8 +66,8 @@ SHA3_Init proc
     mov    al, SHA3_512_CBLOCK
     mov    cl, SHA3_512_DIGEST_LENGTH
 exit_init:
-    mov    [ebx][SHA3_CTX.blklen ], eax
-    mov    [ebx][SHA3_CTX.dgstlen], ecx
+    mov    [ebx][SHA3_CTX.buflen ], eax
+    mov    [ebx][SHA3_CTX.outlen ], ecx
     mov    [ebx][SHA3_CTX.rounds ], SHA3_ROUNDS
     popad
     ret
@@ -72,10 +75,9 @@ SHA3_Init endp
 
 ; ***********************************************
 ;
-; SHA3_Update (SHA3_CTX*, void*, size_t);
+; SHA3_Update (SHA3_CTX*, void*, uint32_t);
 ;
 ; ***********************************************
-  public SHA3_Update
 SHA3_Update proc
     pushad
 
@@ -84,7 +86,7 @@ SHA3_Update proc
     
     mov    esi, [esp+32+ 8] ; input
     mov    ebx, [esp+32+ 4] ; ctx
-    lea    edi, [ebx][SHA3_CTX.blk.v8]
+    lea    edi, [ebx][SHA3_CTX.buffer.v8]
     mov    edx, [ebx][SHA3_CTX.index ]
 absorb_input:
     ; absorb byte
@@ -92,7 +94,7 @@ absorb_input:
     mov    byte ptr[edi+edx], al
     inc    edx
     ; buffer full?
-    cmp    edx, [ebx][SHA3_CTX.blklen]
+    cmp    edx, [ebx][SHA3_CTX.buflen]
     jne    chk_len
     ; compress
     push   ebx
@@ -112,37 +114,36 @@ SHA3_Update endp
 ; SHA3_Final (void*, SHA3_CTX*);
 ;
 ; ***********************************************
-  public SHA3_Final
 SHA3_Final proc
     pushad
 
     mov    edx, [esp+32+8] ; ctx
     mov    edi, [esp+32+4] ; dgst
     
-    mov    eax, [edx][SHA3_CTX.blklen]
+    mov    eax, [edx][SHA3_CTX.buflen]
     mov    ecx, [edx][SHA3_CTX.index ]
-    lea    esi, [edx][SHA3_CTX.blk.v8]
-    ; ctx->blk.v8[ctx->index++] = 6;
+    lea    esi, [edx][SHA3_CTX.buffer.v8]
+    ; ctx->buffer.v8[ctx->index++] = 6;
     mov    byte ptr[esi+ecx], 6
     inc    ecx
-    ; while (ctx->index < ctx->blklen) {
-    ;   ctx->blk.v8[ctx->index++] = 0;
+    ; while (ctx->index < ctx->buflen) {
+    ;   ctx->buffer.v8[ctx->index++] = 0;
     ; }
-zero_blk:
+zero_buffer:
     cmp    ecx, eax
     jae    exit_zero
     
     mov    byte ptr[esi+ecx], 0
     inc    ecx
-    jmp    zero_blk
+    jmp    zero_buffer
 exit_zero:
-    ; ctx->blk.v8[ctx->blklen-1] |= 0x80;
+    ; ctx->buffer.v8[ctx->buflen-1] |= 0x80;
     or    byte ptr[esi+eax-1], 80h
     ; SHA3_Transform (ctx);
     push   edx
     call   SHA3_Transform
     ; memcpy (dgst, ctx->state.v8, ctx->dgstlen);
-    mov    ecx, [edx][SHA3_CTX.dgstlen ]
+    mov    ecx, [edx][SHA3_CTX.outlen ]
     lea    esi, [edx][SHA3_CTX.state.v8]
     rep    movsb
     popad
@@ -166,7 +167,6 @@ SHA3_WS ends
 ; SHA3_Transform (SHA3_CTX*);
 ;
 ; ***********************************************
-  public SHA3_Transform
 SHA3_Transform proc
     pushad
     
@@ -178,9 +178,9 @@ SHA3_Transform proc
     mov    eax, [ebx][SHA3_CTX.rounds]
     mov    [esp][SHA3_WS.rnds], eax
     
-    lea    esi, [ebx][SHA3_CTX.blk.v8]
+    lea    esi, [ebx][SHA3_CTX.buffer.v8]
     lea    edi, [ebx][SHA3_CTX.state.v8]
-    mov    ecx, [ebx][SHA3_CTX.blklen]
+    mov    ecx, [ebx][SHA3_CTX.buflen]
 xor_state:
     lodsb
     xor    al, [edi]

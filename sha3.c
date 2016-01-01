@@ -41,7 +41,11 @@ void SHA3_Transform (SHA3_CTX *ctx)
   {
     // Theta
     for (i=0; i<5; i++) {     
-      bc[i] = st[i] ^ st[i + 5] ^ st[i + 10] ^ st[i + 15] ^ st[i + 20];
+      bc[i] = st[i] 
+            ^ st[i + 5] 
+            ^ st[i + 10] 
+            ^ st[i + 15] 
+            ^ st[i + 20];
     }
     for (i=0; i<5; i++) {
       t = bc[(i + 4) % 5] ^ ROTL64(bc[(i + 1) % 5], 1);

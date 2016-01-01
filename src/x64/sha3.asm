@@ -1,6 +1,6 @@
 
 
-; SHA-3 in x64 assembly
+; SHA-3 in x64 assembly for MASM/JWASM
 ; Odzhan
 
 ifdef __JWASM__
@@ -56,8 +56,8 @@ SHA3_Init proc
     mov    al, SHA3_512_CBLOCK
     mov    cl, SHA3_512_DIGEST_LENGTH
 exit_init:
-    mov    [rdi][SHA3_CTX.blklen ], eax
-    mov    [rdi][SHA3_CTX.dgstlen], ecx
+    mov    [rdi][SHA3_CTX.buflen ], eax
+    mov    [rdi][SHA3_CTX.outlen ], ecx
     mov    [rdi][SHA3_CTX.rounds ], SHA3_ROUNDS
     ; restore
     pop    rdi
@@ -87,7 +87,7 @@ SHA3_Update proc
     
     mov    rsi, rdx    ; rsi = input
     mov    rbx, rcx    ; rbx = ctx
-    lea    rdi, [rbx][SHA3_CTX.blk.v8]   ;
+    lea    rdi, [rbx][SHA3_CTX.buffer.v8]   ;
     mov    edx, [rbx][SHA3_CTX.index]    ; idx
 absorb_input:
     ; absorb a byte
@@ -95,7 +95,7 @@ absorb_input:
     mov    byte ptr[rdi+rdx], al
     inc    edx
     ; buffer full?
-    cmp    edx, [rbx][SHA3_CTX.blklen]
+    cmp    edx, [rbx][SHA3_CTX.buflen]
     jne    chk_len
     ; compress
     mov    rcx, rbx
@@ -132,30 +132,30 @@ SHA3_Final proc
     ; -------------
     mov    rdi, rcx   ; dgst
     
-    mov    eax, [rdx][SHA3_CTX.blklen]
+    mov    eax, [rdx][SHA3_CTX.buflen]
     mov    ecx, [rdx][SHA3_CTX.index ]
-    lea    rsi, [rdx][SHA3_CTX.blk.v8]
-    ; ctx->blk.v8[ctx->index++] = 6;
+    lea    rsi, [rdx][SHA3_CTX.buffer.v8]
+    ; ctx->buffer.v8[ctx->index++] = 6;
     mov    byte ptr[rsi+rcx], 6
     inc    ecx
-    ; while (ctx->index < ctx->blklen) {
-    ;   ctx->blk.v8[ctx->index++] = 0;
+    ; while (ctx->index < ctx->buflen) {
+    ;   ctx->buffer.v8[ctx->index++] = 0;
     ; }
-zero_blk:
+zero_buffer:
     cmp    ecx, eax
     jae    exit_zero
     
     mov    byte ptr[rsi+rcx], 0
     inc    ecx
-    jmp    zero_blk
+    jmp    zero_buffer
 exit_zero:
-    ; ctx->blk.v8[ctx->blklen-1] |= 0x80;
+    ; ctx->buffer.v8[ctx->buflen-1] |= 0x80;
     or     byte ptr[rsi+rax-1], 80h
     ; SHA3_Transform (ctx);
     mov    rcx, rdx
     call   SHA3_Transform
-    ; memcpy (dgst, ctx->state.v8, ctx->dgstlen);
-    mov    ecx, [rdx][SHA3_CTX.dgstlen ]
+    ; memcpy (dgst, ctx->state.v8, ctx->outlen);
+    mov    ecx, [rdx][SHA3_CTX.outlen ]
     lea    rsi, [rdx][SHA3_CTX.state.v8]
     rep    movsb
     ; -------------
@@ -204,9 +204,9 @@ SHA3_Transform proc
     
     mov    rnds, [rbx][SHA3_CTX.rounds]
     
-    lea    rsi, [rbx][SHA3_CTX.blk.v8]
+    lea    rsi, [rbx][SHA3_CTX.buffer.v8]
     lea    rdi, [rbx][SHA3_CTX.state.v8]
-    mov    ecx, [rbx][SHA3_CTX.blklen]
+    mov    ecx, [rbx][SHA3_CTX.buflen]
 xor_state:
     lodsb
     xor    al, [rdi]
