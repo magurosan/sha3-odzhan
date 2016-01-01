@@ -89,7 +89,6 @@ void SHA3_Transform (SHA3_CTX *ctx)
     }
     
     //  Iota
-    //st[0] ^= keccakf_rndc[round];
     st[0] ^= rc(&lfsr);
   }
 }
