@@ -39,7 +39,7 @@ The code is public domain, feel free to do with as you wish.
   * YASM/NASM (todo)
     
     
-[ updates
+[ history
 
 Jan 2016
   * Fixed errors in assembly code

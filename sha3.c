@@ -1,26 +1,40 @@
 
 
-// SHA-3 in C
+// Compact implementation of SHA-3 in C
 // Odzhan
 
 #include "sha3.h"
 
-const uint64_t keccakf_rndc[24] = 
-{ 0x0000000000000001, 0x0000000000008082, 0x800000000000808a,
-  0x8000000080008000, 0x000000000000808b, 0x0000000080000001,
-  0x8000000080008081, 0x8000000000008009, 0x000000000000008a,
-  0x0000000000000088, 0x0000000080008009, 0x000000008000000a,
-  0x000000008000808b, 0x800000000000008b, 0x8000000000008089,
-  0x8000000000008003, 0x8000000000008002, 0x8000000000000080, 
-  0x000000000000800a, 0x800000008000000a, 0x8000000080008081,
-  0x8000000000008080, 0x0000000080000001, 0x8000000080008008
-};
+// Primitive polynomial over GF(2): x^8+x^6+x^5+x^4+1
+uint64_t rc (uint8_t *LFSR)
+{
+  int i;
+  uint64_t c;
+  uint32_t xor, t;
 
-const int keccakf_rotc[24] = 
+  c = 0;
+  t = *LFSR;
+  
+  for (i=1; i<128; i <<= 1) 
+  {
+    xor = t & 1;
+    if ((t & 0x80) != 0)
+      t = (t << 1) ^ 0x71;
+    else
+      t <<= 1;
+
+    if (xor != 0)
+      c ^= (uint64_t)1ULL << (i - 1);
+  }
+  *LFSR = (uint8_t)t;
+  return c;
+}
+
+const uint8_t keccakf_rotc[24] = 
 { 1,  3,  6,  10, 15, 21, 28, 36, 45, 55, 2,  14, 
   27, 41, 56, 8,  25, 43, 62, 18, 39, 61, 20, 44 };
 
-const int keccakf_piln[24] = 
+const uint8_t keccakf_piln[24] = 
 { 10, 7,  11, 17, 18, 3, 5,  16, 8,  21, 24, 4, 
   15, 23, 19, 13, 12, 2, 20, 14, 22, 9,  6,  1  };
 
@@ -31,6 +45,7 @@ void SHA3_Transform (SHA3_CTX *ctx)
   uint32_t i, j, round;
   uint64_t t, bc[5];
   uint64_t *st=(uint64_t*)ctx->state.v64;
+  uint8_t lfsr=1;
   
   // xor state with block
   for (i=0; i<ctx->buflen; i++) {
@@ -74,7 +89,8 @@ void SHA3_Transform (SHA3_CTX *ctx)
     }
     
     //  Iota
-    st[0] ^= keccakf_rndc[round];
+    //st[0] ^= keccakf_rndc[round];
+    st[0] ^= rc(&lfsr);
   }
 }
 
