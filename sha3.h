@@ -27,8 +27,6 @@
 #define SHA3_512_DIGEST_LENGTH  64
 #define SHA3_512_CBLOCK         72
 
-#define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
-
 typedef union sha3_st_t {
   uint8_t  v8[SHA3_STATE_LEN*8];
   uint16_t v16[SHA3_STATE_LEN*4];
@@ -45,13 +43,12 @@ typedef union sha3_buf_t {
 
 #pragma pack(push, 1)
 typedef struct _SHA3_CTX {
-  sha3_st state;
-  
   uint32_t index;
   uint32_t outlen;
   uint32_t rounds;
   uint32_t buflen;
   
+  sha3_st state;
   sha3_buf buffer;
 } SHA3_CTX;
 #pragma pack(pop)

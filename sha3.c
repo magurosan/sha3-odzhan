@@ -8,23 +8,18 @@
 // Primitive polynomial over GF(2): x^8+x^6+x^5+x^4+1
 uint64_t rc (uint8_t *LFSR)
 {
-  int i;
   uint64_t c;
-  uint32_t xor, t;
+  uint32_t i, t;
 
   c = 0;
   t = *LFSR;
   
-  for (i=1; i<128; i <<= 1) 
+  for (i=1; i<128; i += i) 
   {
-    xor = t & 1;
-    if ((t & 0x80) != 0)
-      t = (t << 1) ^ 0x71;
-    else
-      t <<= 1;
-
-    if (xor != 0)
+    if (t & 1) {
       c ^= (uint64_t)1ULL << (i - 1);
+    }
+    t = (t & 0x80) ? (t << 1) ^ 0x71 : t << 1;
   }
   *LFSR = (uint8_t)t;
   return c;

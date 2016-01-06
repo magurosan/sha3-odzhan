@@ -56,9 +56,9 @@ SHA3_Init proc
     mov    al, SHA3_512_CBLOCK
     mov    cl, SHA3_512_DIGEST_LENGTH
 exit_init:
-    mov    [rdi][SHA3_CTX.buflen ], eax
-    mov    [rdi][SHA3_CTX.outlen ], ecx
-    mov    [rdi][SHA3_CTX.rounds ], SHA3_ROUNDS
+    mov    [rdi+SHA3_CTX.buflen ], eax
+    mov    [rdi+SHA3_CTX.outlen ], ecx
+    mov    [rdi+SHA3_CTX.rounds ], SHA3_ROUNDS
     ; restore
     pop    rdi
     pop    rdx
@@ -87,15 +87,15 @@ SHA3_Update proc
     
     mov    rsi, rdx    ; rsi = input
     mov    rbx, rcx    ; rbx = ctx
-    lea    rdi, [rbx][SHA3_CTX.buffer.v8]   ;
-    mov    edx, [rbx][SHA3_CTX.index]    ; idx
+    lea    rdi, [rbx+SHA3_CTX.buffer.v8]   ;
+    mov    edx, [rbx+SHA3_CTX.index]    ; idx
 absorb_input:
     ; absorb a byte
     lodsb
     mov    byte ptr[rdi+rdx], al
     inc    edx
     ; buffer full?
-    cmp    edx, [rbx][SHA3_CTX.buflen]
+    cmp    edx, [rbx+SHA3_CTX.buflen]
     jne    chk_len
     ; compress
     mov    rcx, rbx
@@ -104,7 +104,7 @@ absorb_input:
 chk_len:
     dec    r8
     jnz    absorb_input
-    mov    [rbx][SHA3_CTX.index], edx
+    mov    [rbx+SHA3_CTX.index], edx
 exit_update:
     ; --------
     pop    rdi
@@ -132,9 +132,9 @@ SHA3_Final proc
     ; -------------
     mov    rdi, rcx   ; dgst
     
-    mov    eax, [rdx][SHA3_CTX.buflen]
-    mov    ecx, [rdx][SHA3_CTX.index ]
-    lea    rsi, [rdx][SHA3_CTX.buffer.v8]
+    mov    eax, [rdx+SHA3_CTX.buflen]
+    mov    ecx, [rdx+SHA3_CTX.index ]
+    lea    rsi, [rdx+SHA3_CTX.buffer.v8]
     ; ctx->buffer.v8[ctx->index++] = 6;
     mov    byte ptr[rsi+rcx], 6
     inc    ecx
@@ -155,8 +155,8 @@ exit_zero:
     mov    rcx, rdx
     call   SHA3_Transform
     ; memcpy (dgst, ctx->state.v8, ctx->outlen);
-    mov    ecx, [rdx][SHA3_CTX.outlen ]
-    lea    rsi, [rdx][SHA3_CTX.state.v8]
+    mov    ecx, [rdx+SHA3_CTX.outlen ]
+    lea    rsi, [rdx+SHA3_CTX.state.v8]
     rep    movsb
     ; -------------
     pop    rdi
@@ -168,6 +168,7 @@ exit_zero:
     ret
 SHA3_Final endp
 
+t    equ <rax>
 r    equ <rbx>
 i    equ <rdx> ; rcx is needed for rotations
 j    equ <rbp>
@@ -179,6 +180,30 @@ rnds equ <r10d>
 _st equ <rsi>
 _bc equ <rdi>
 
+rc:
+    pxor   mm0, mm0        ; c=0
+    pxor   mm1, mm1        ; 
+    push   1
+    pop    rax             ; i=1
+rc_l00:
+    test   dl, 1           ; (t & 1)
+    jz     rc_l01
+    ; ecx = (i - 1)
+    lea    ecx, [eax-1]
+    movd   mm2, ecx
+    movq   mm3, mm1
+    ; 1ULL << (i - 1)
+    shl    rdx, cl
+    xor    rax, rdx        ; c ^= 1ULL << (i - 1)
+rc_l01:
+    add    dl, dl          ; t += t
+    jnc    rc_l02
+    xor    dl, 71h
+rc_l02:
+    add    al, al          ; i += i
+    jns    rc_l00
+    ret
+    
 ; ***********************************************
 ;
 ; SHA3_Transform (SHA3_CTX*);
@@ -202,18 +227,18 @@ SHA3_Transform proc
     
     mov    rbx, rcx                ; ctx
     
-    mov    rnds, [rbx][SHA3_CTX.rounds]
+    mov    rnds, [rbx+SHA3_CTX.rounds]
     
-    lea    rsi, [rbx][SHA3_CTX.buffer.v8]
-    lea    rdi, [rbx][SHA3_CTX.state.v8]
-    mov    ecx, [rbx][SHA3_CTX.buflen]
+    lea    rsi, [rbx+SHA3_CTX.buffer.v8]
+    lea    rdi, [rbx+SHA3_CTX.state.v8]
+    mov    ecx, [rbx+SHA3_CTX.buflen]
 xor_state:
     lodsb
     xor    al, [rdi]
     stosb
     loop   xor_state
     
-    lea    _st, [rbx][SHA3_CTX.state.v8]
+    lea    _st, [rbx+SHA3_CTX.state.v8]
     mov    _bc, rsp
     
     ; ===========================================
@@ -251,11 +276,11 @@ theta_step1:
     xor    i, i
 theta_step2:
     ; t = ROTL64(bc[(i + 1) % 5], 1)
-    movzx  t1, byte ptr keccakf_mod5[i+1]
+    movzx  t1, byte ptr [keccakf_mod5 + i + 1]
     mov    t1, [_bc+8*t1]
     rol    t1, 1
     ; bc[(i + 4) % 5]
-    movzx  t2, byte ptr keccakf_mod5[i+4]
+    movzx  t2, byte ptr [keccakf_mod5 + i + 4]
     xor    t1, [_bc+8*t2]
     ; for (j = 0; j < 25; j += 5)
     ; ===========================================
@@ -289,12 +314,12 @@ theta_step3:
 rho_pi_step1:
     ; for (i = 0; i < 24; i++)
     ; j = keccakf_piln[i];
-    movzx  j, byte ptr keccakf_piln[i]
+    movzx  j, byte ptr [keccakf_piln + i]
     ; bc[0] = st[j];
     mov    t2, [_st+8*j]
     mov    [_bc], t2
     ; st[j] = ROTL64(t, keccakf_rotc[i]);
-    movzx  ecx, byte ptr keccakf_rotc[i]
+    movzx  ecx, byte ptr [keccakf_rotc + i]
     rol    t1, cl
     mov    [_st+8*j], t1
     mov    t1, t2
@@ -328,10 +353,10 @@ chi_step2:
     xor    i, i
 chi_step3:
     ; st[j + i] ^= (~bc[(i+1)%5]) & bc[(i+2)%5];
-    movzx  t1, byte ptr keccakf_mod5[i+1]
+    movzx  t1, byte ptr [keccakf_mod5 + i + 1]
     mov    t1, [_bc+8*t1]
     not    t1
-    movzx  t2, byte ptr keccakf_mod5[i+2]
+    movzx  t2, byte ptr [keccakf_mod5 + i + 2]
     and    t1, [_bc+8*t2]
     
     lea    t2, [j+i]
@@ -346,8 +371,8 @@ chi_step3:
     jne    chi_step1
            
     ; // Iota
-    ; st[0] ^= keccakf_rndc[round];
-    mov    t1, qword ptr keccakf_rndc[8*r]
+    ; st[0] ^= rc(&lfsr);
+    call   rc
     xor    qword ptr [_st], t1
 
     inc    r
@@ -383,15 +408,4 @@ keccakf_piln label qword
 keccakf_mod5 label qword
   db 0, 1, 2, 3, 4, 0, 1, 2, 3, 4
 
-; these are generated using linear feedback shift register
-keccakf_rndc label qword
-  dq 00000000000000001h, 00000000000008082h, 0800000000000808ah
-  dq 08000000080008000h, 0000000000000808bh, 00000000080000001h
-  dq 08000000080008081h, 08000000000008009h, 0000000000000008ah
-  dq 00000000000000088h, 00000000080008009h, 0000000008000000ah
-  dq 0000000008000808bh, 0800000000000008bh, 08000000000008089h
-  dq 08000000000008003h, 08000000000008002h, 08000000000000080h 
-  dq 0000000000000800ah, 0800000008000000ah, 08000000080008081h
-  dq 08000000000008080h, 00000000080000001h, 08000000080008008h
-  
   end

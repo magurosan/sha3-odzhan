@@ -7,23 +7,12 @@
   
   %include 'sha3x.inc'
 
-  global _SHA3_Initx
-  global _SHA3_Updatex
-  global _SHA3_Finalx
-
-; rotate mm0 left by bits in eax
-; uses mm2, mm3 and mm4
-rotl64:
-    movq   mm2, mm0
-    movd   mm3, eax    ; move count into mm2
-    sub    eax, 64     ; calculate how much to rotate right
-    neg    eax         ; 64 - eax
-    movd   mm4, eax
-    psllq  mm0, mm3    ; shift left by n
-    psrlq  mm2, mm4    ; shift right by 64-n
-    por    mm0, mm2    ; mm0 has the result
-    ret
-
+  %ifndef BIN
+    global _SHA3_Initx
+    global _SHA3_Updatex
+    global _SHA3_Finalx
+  %endif
+  
 ; ***********************************************
 ;
 ; SHA3_Init (&ctx, int);
@@ -59,7 +48,7 @@ _SHA3_Initx:
 exit_init:
     mov    dword[ebx+buflen], eax
     mov    dword[ebx+outlen], ecx
-    mov    dword[ebx+rounds], SHA3_ROUNDS
+    mov    byte[ebx+rounds], SHA3_ROUNDS
     popad
     ret
 
@@ -71,33 +60,40 @@ exit_init:
 _SHA3_Updatex:
     pushad
 
-    mov    ecx, [esp+32+12] ; len
-    jecxz  exit_update
+    lea    esi, [esp+32+4]
+    lodsd
+    ; ebx = ctx
+    xchg   ebx, eax
+    lodsd
+    ; ecx = input
+    xchg   ecx, eax
+    lodsd
+    ; ecx = len
+    xchg   ecx, eax
+    ; esi = input
+    xchg   esi, eax
+    jecxz  upd_l02
     
-    mov    esi, [esp+32+ 8] ; input
-    mov    ebx, [esp+32+ 4] ; ctx
     lea    edi, [ebx+buffer]
     mov    edx, [ebx+index ]
-absorb_input:
+upd_l00:
     ; absorb byte
     lodsb
     mov    byte[edi+edx], al
     inc    edx
     ; buffer full?
     cmp    edx, [ebx+buflen]
-    jne    chk_len
+    jne    upd_l01
     ; compress
-    push   ebx
     call   SHA3_Transform
-    xor    edx, edx
-chk_len:
-    dec    ecx   
-    jnz    absorb_input
+    cdq
+upd_l01:
+    loop   upd_l00
     mov    [ebx+index], edx
-exit_update:
+upd_l02:
     popad
     ret
-
+  
 ; ***********************************************
 ;
 ; SHA3_Final (void*, SHA3_CTX*);
@@ -106,50 +102,88 @@ exit_update:
 _SHA3_Finalx:
     pushad
 
-    mov    edx, [esp+32+8] ; ctx
+    mov    ebx, [esp+32+8] ; ctx
     mov    edi, [esp+32+4] ; dgst
     
-    mov    eax, [edx+buflen]
-    mov    ecx, [edx+index ]
-    lea    esi, [edx+buffer]
+    mov    eax, [ebx+buflen]
+    mov    ecx, [ebx+index ]
+    lea    esi, [ebx+buffer]
     ; ctx->buffer[ctx->index++] = 6;
     mov    byte[esi+ecx], 6
     inc    ecx
     ; while (ctx->index < ctx->buflen) {
     ;   ctx->buffer[ctx->index++] = 0;
     ; }
-zero_buffer:
+fin_l00:
     cmp    ecx, eax
-    jae    exit_zero
+    jae    fin_l01
     
     mov    byte[esi+ecx], 0
     inc    ecx
-    jmp    zero_buffer
-exit_zero:
+    jmp    fin_l00
+fin_l01:
     ; ctx->buffer[ctx->buflen-1] |= 0x80;
     or    byte[esi+eax-1], 80h
     ; SHA3_Transform (ctx);
-    push   edx
     call   SHA3_Transform
     ; memcpy (dgst, ctx->state, ctx->dgstlen);
-    mov    ecx, [edx+outlen]
-    lea    esi, [edx+state ]
+    mov    ecx, [ebx+outlen]
+    lea    esi, [ebx+state ]
     rep    movsb
     popad
     ret
 
-%define r   ebx
-%define i   ecx
-%define j   edx
-%define t   mm0
-%define _st esi
-%define _bc edi
+%define r    ebx
+%define i    ecx
+%define lfsr edx
+%define j    ebp
+%define t    mm0
+%define _st  esi
+%define _bc  edi
 
 struc SHA3_WS
   bc   resq 5
   rnds resd 1
 endstruc
 
+; rotate mm0 left by bits in eax
+; uses mm2, mm3 and mm4
+rotl64:
+    movq   mm2, mm0
+    movd   mm3, eax    ; move count into mm2
+    sub    eax, 64     ; calculate how much to rotate right
+    neg    eax         ; 64 - eax
+    movd   mm4, eax
+    psllq  mm0, mm3    ; shift left by n
+    psrlq  mm2, mm4    ; shift right by 64-n
+    por    mm0, mm2    ; mm0 has the result
+    ret
+
+rc:
+    pxor   mm0, mm0        ; c=0
+    pxor   mm1, mm1        ; 
+    push   1
+    pop    eax             ; i=1
+    movd   mm1, eax
+rc_l00:
+    test   dl, 1           ; (t & 1)
+    jz     rc_l01
+    ; ecx = (i - 1)
+    lea    ecx, [eax-1]
+    movd   mm2, ecx
+    movq   mm3, mm1
+    ; 1ULL << (i - 1)
+    psllq  mm3, mm2
+    pxor   mm0, mm3        ; c ^= 1ULL << (i - 1)
+rc_l01:
+    add    dl, dl          ; t += t
+    jnc    rc_l02
+    xor    dl, 71h
+rc_l02:
+    add    al, al          ; i += i
+    jns    rc_l00
+    ret
+  
 ; ***********************************************
 ;
 ; SHA3_Transform (SHA3_CTX*);
@@ -157,8 +191,6 @@ endstruc
 ; ***********************************************
 SHA3_Transform:
     pushad
-    
-    mov    ebx, [esp+32+4]              ; ctx
     
     ; set up workspace
     sub    esp, SHA3_WS_size
@@ -180,6 +212,8 @@ s3_l01:
     lea    _bc, [esp+bc]
     xor    r, r
     
+    push   1
+    pop    lfsr
 s3_l02:
     ; Theta
     ; for (i = 0; i < 5; i++)     
@@ -304,9 +338,10 @@ s3_l09:
            
     ; // Iota
     ; st[0] ^= keccakf_rndc[round];
-    movq    t, [_st]
-    pxor    t, qword [keccakf_rndc + 8 * r]
-    movq    [_st], t
+    movq    mm4, [_st]
+    call    rc
+    pxor    mm4, t
+    movq    [_st], mm4
     
     inc     r
     cmp     r, [esp+rnds]
@@ -314,7 +349,7 @@ s3_l09:
     
     add    esp, SHA3_WS_size
     popad
-    ret    4
+    ret
     
 keccakf_rotc:
   db 1,  3,  6,  10, 15, 21, 28, 36, 45, 55, 2,  14
@@ -326,15 +361,3 @@ keccakf_piln:
   
 keccakf_mod5:
   db 0, 1, 2, 3, 4, 0, 1, 2, 3, 4
-
-; these are generated using linear feedback shift register
-keccakf_rndc:
-  dq 00000000000000001h, 00000000000008082h, 0800000000000808ah
-  dq 08000000080008000h, 0000000000000808bh, 00000000080000001h
-  dq 08000000080008081h, 08000000000008009h, 0000000000000008ah
-  dq 00000000000000088h, 00000000080008009h, 0000000008000000ah
-  dq 0000000008000808bh, 0800000000000008bh, 08000000000008089h
-  dq 08000000000008003h, 08000000000008002h, 08000000000000080h 
-  dq 0000000000000800ah, 0800000008000000ah, 08000000080008081h
-  dq 08000000000008080h, 00000000080000001h, 08000000080008008h
-  

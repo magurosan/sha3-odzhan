@@ -26,11 +26,11 @@
 %define SHA3_512_CBLOCK	        72
 
 struc SHA3_CTX 
-  state   resq 25
   index	  resd 1
   outlen	resd 1
   rounds	resd 1
   buflen	resd 1
+  state   resq 25
   buffer  resb 256
   .size:
 endstruc
