@@ -2,7 +2,9 @@
 
 ; SHA-3 in x86/MMX assembly for YASM/NASM
 ; Odzhan
-
+;
+; 567 bytes
+;
   bits 32
   
   %include 'sha3x.inc'
@@ -133,10 +135,10 @@ fin_l01:
     popad
     ret
 
-%define r    ebx
+%define r    ebp
 %define i    ecx
 %define lfsr edx
-%define j    ebp
+%define j    ebx
 %define t    mm0
 %define _st  esi
 %define _bc  edi
@@ -246,7 +248,8 @@ s3_l04:
     ; t = ROTL64(bc[(i + 1) % 5], 1)
     movzx  eax, byte [keccakf_mod5 + i + 1]
     movq   t, [_bc+8*eax]
-    mov    eax, 1
+    push   1
+    pop    eax
     call   rotl64
     ; bc[(i + 4) % 5]
     mov    al, byte [keccakf_mod5 + i + 4]
