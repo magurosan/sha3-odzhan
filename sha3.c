@@ -1,5 +1,5 @@
 /**
-  Copyright © 2015 Odzhan. All Rights Reserved.
+  Copyright © 2015, 2016 Odzhan. All Rights Reserved.
 
   Redistribution and use in source and binary forms, with or without
   modification, are permitted provided that the following conditions are
@@ -62,17 +62,12 @@ const uint8_t keccakf_piln[24] =
 
 void SHA3_Transform (SHA3_CTX *ctx)
 {
-  uint32_t i, j, round;
+  uint32_t i, j, rnd;
   uint64_t t, bc[5];
   uint64_t *st=(uint64_t*)ctx->state.v64;
   uint8_t lfsr=1;
   
-  // xor state with block
-  for (i=0; i<ctx->buflen; i++) {
-    ctx->state.v8[i] ^= ctx->buffer.v8[i];
-  }
-  
-  for (round = 0; round < ctx->rounds; round++) 
+  for (rnd=0; rnd<SHA3_ROUNDS; rnd++) 
   {
     // Theta
     for (i=0; i<5; i++) {     
@@ -91,7 +86,7 @@ void SHA3_Transform (SHA3_CTX *ctx)
 
     // Rho Pi
     t = st[1];
-    for (i = 0; i < 24; i++) {
+    for (i=0; i<24; i++) {
       j = keccakf_piln[i];
       bc[0] = st[j];
       st[j] = ROTL64(t, keccakf_rotc[i]);
@@ -99,11 +94,11 @@ void SHA3_Transform (SHA3_CTX *ctx)
     }
 
     //  Chi
-    for (j = 0; j < 25; j += 5) {
-      for (i = 0; i < 5; i++) {
+    for (j=0; j<25; j+=5) {
+      for (i=0; i<5; i++) {
         bc[i] = st[j + i];
       }
-      for (i = 0; i < 5; i++) {
+      for (i=0; i<5; i++) {
         st[j + i] ^= (~bc[(i + 1) % 5]) & bc[(i + 2) % 5];
       }
     }
@@ -113,50 +108,31 @@ void SHA3_Transform (SHA3_CTX *ctx)
   }
 }
 
-void SHA3_Init (SHA3_CTX *ctx, int type)
+void SHA3_Init (SHA3_CTX *ctx, int mdlen)
 {
   uint32_t i;
   
-  ctx->rounds = SHA3_ROUNDS;
+  ctx->outlen = mdlen/2;
+  ctx->buflen = 200 - (2 * mdlen);
   ctx->index  = 0;
   
   for (i=0; i<SHA3_STATE_LEN; i++) {
     ctx->state.v64[i] = 0;
   }
-  
-  switch (type)
-  {
-    case SHA3_224:
-      ctx->buflen = SHA3_224_CBLOCK;
-      ctx->outlen = SHA3_224_DIGEST_LENGTH;
-      break;
-    case SHA3_384:
-      ctx->buflen = SHA3_384_CBLOCK;
-      ctx->outlen = SHA3_384_DIGEST_LENGTH;
-      break;
-    case SHA3_512:
-      ctx->buflen = SHA3_512_CBLOCK;
-      ctx->outlen = SHA3_512_DIGEST_LENGTH;
-      break;
-    default:
-      ctx->buflen = SHA3_256_CBLOCK;
-      ctx->outlen = SHA3_256_DIGEST_LENGTH;
-      break;
-  }   
 }
 
-void SHA3_Update (SHA3_CTX* ctx, void *in, uint32_t inlen) {
+void SHA3_Update (SHA3_CTX* ctx, void *in, uint32_t inlen)
+{
   uint32_t i;
   
   // update buffer and state
-  for (i=0; i<inlen; i++) {
-    // absorb byte
-    ctx->buffer.v8[ctx->index++] = ((uint8_t*)in)[i];
-    
+  for (i=0; i<inlen; i++) {    
     if (ctx->index == ctx->buflen) {
       SHA3_Transform (ctx);
       ctx->index = 0;
     }
+    // absorb byte into state
+    ctx->state.v8[ctx->index++] ^= ((uint8_t*)in)[i];
   }
 }
 
@@ -164,17 +140,22 @@ void SHA3_Final (void* out, SHA3_CTX* ctx)
 {
   uint32_t i;
   // absorb 3 bits, Keccak uses 1
-  ctx->buffer.v8[ctx->index++] = 6;
-  // fill remaining space with zeros
-  while (ctx->index < ctx->buflen) {
-    ctx->buffer.v8[ctx->index++] = 0;
-  }
+  ctx->state.v8[ctx->index] ^= 6;
   // absorb end bit
-  ctx->buffer.v8[ctx->buflen-1] |= 0x80;
+  ctx->state.v8[ctx->buflen-1] ^= 0x80;
   // update context
   SHA3_Transform (ctx);
   // copy digest to buffer
   for (i=0; i<ctx->outlen; i++) {
     ((uint8_t*)out)[i] = ctx->state.v8[i];
   }
+}
+
+// calls SHA-3 once to create MAC of data
+// todo ...
+void sha3_mac (void *in, uint32_t inlen, 
+  void *key, uint32_t keylen,
+  void *out, uint32_t mdlen)
+{
+  
 }

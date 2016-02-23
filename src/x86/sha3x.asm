@@ -1,10 +1,44 @@
-
-
-; SHA-3 in x86/MMX assembly for YASM/NASM
-; Odzhan
 ;
-; 567 bytes
+;  Copyright © 2015, 2016 Odzhan, Peter Ferrie. All Rights Reserved.
 ;
+;  Redistribution and use in source and binary forms, with or without
+;  modification, are permitted provided that the following conditions are
+;  met:
+;
+;  1. Redistributions of source code must retain the above copyright
+;  notice, this list of conditions and the following disclaimer.
+;
+;  2. Redistributions in binary form must reproduce the above copyright
+;  notice, this list of conditions and the following disclaimer in the
+;  documentation and/or other materials provided with the distribution.
+;
+;  3. The name of the author may not be used to endorse or promote products
+;  derived from this software without specific prior written permission.
+;
+;  THIS SOFTWARE IS PROVIDED BY AUTHORS "AS IS" AND ANY EXPRESS OR
+;  IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+;  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+;  DISCLAIMED. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT,
+;  INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+;  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+;  SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+;  HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+;  STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+;  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+;  POSSIBILITY OF SUCH DAMAGE.
+
+; -----------------------------------------------
+; SHA-3 in x86 assembly
+;
+; Written by Odzhan and Peter Ferrie
+;
+; Derived/influenced from code by Markku-Juhani O. Saarinen
+;
+; size: 486 bytes
+;
+; global calls use cdecl convention
+;
+; -----------------------------------------------
   bits 32
   
   %include 'sha3x.inc'
@@ -23,34 +57,18 @@
 _SHA3_Initx:
     pushad
     mov    edi, [esp+32+4]    ; context
-    mov    edx, [esp+32+8]    ; type
-    
-    ; memset (ctx, 0, sizeof SHA3_CTX);
-    mov    ebx, edi
-    mov    ecx, SHA3_CTX_size
+    mov    eax, [esp+32+8]    ; outlen
+    stosd                     ; ctx->outlen=outlen
+    add    eax, eax           ; *= 2
+    push   (SHA3_STATE_LEN*8)/2
+    pop    ecx
+    add    ecx, ecx           ; ecx=200
+    neg    eax                ; negate
+    add    eax, ecx           ; add 200
+    stosd                     ; buflen = 200 - (2 * outlen)
     xor    eax, eax
-    rep    stosb
-
-    mov    al, SHA3_224_CBLOCK
-    mov    cl, SHA3_224_DIGEST_LENGTH
-    dec    edx
-    js     exit_init
-    
-    mov    al, SHA3_256_CBLOCK
-    mov    cl, SHA3_256_DIGEST_LENGTH
-    jz     exit_init
-    
-    mov    al, SHA3_384_CBLOCK
-    mov    cl, SHA3_384_DIGEST_LENGTH
-    dec    edx
-    jz     exit_init
-    
-    mov    al, SHA3_512_CBLOCK
-    mov    cl, SHA3_512_DIGEST_LENGTH
-exit_init:
-    mov    dword[ebx+buflen], eax
-    mov    dword[ebx+outlen], ecx
-    mov    byte[ebx+rounds], SHA3_ROUNDS
+    stosd                     ; index=0
+    rep    stosb              ; zero the state buffer
     popad
     ret
 
@@ -61,38 +79,35 @@ exit_init:
 ; ***********************************************
 _SHA3_Updatex:
     pushad
-
     lea    esi, [esp+32+4]
     lodsd
-    ; ebx = ctx
-    xchg   ebx, eax
+    push   eax               ; save ctx
     lodsd
-    ; ecx = input
-    xchg   ecx, eax
+    xchg   ebx, eax          ; ebx = input
     lodsd
-    ; ecx = len
-    xchg   ecx, eax
-    ; esi = input
-    xchg   esi, eax
-    jecxz  upd_l02
+    xchg   ecx, eax          ; ecx = len
+    pop    esi               ; esi = ctx
+    jecxz  upd_l2
     
-    lea    edi, [ebx+buffer]
-    mov    edx, [ebx+index ]
-upd_l00:
-    ; absorb byte
-    lodsb
-    mov    byte[edi+edx], al
-    inc    edx
-    ; buffer full?
-    cmp    edx, [ebx+buflen]
-    jne    upd_l01
-    ; compress
-    call   SHA3_Transform
-    cdq
-upd_l01:
-    loop   upd_l00
-    mov    [ebx+index], edx
-upd_l02:
+    lodsd                    ; skip ctx->outlen
+    lodsd                    ;
+    xchg   eax, ebp          ; ebp = ctx->buflen
+    push   esi               ; save ptr to ctx->index
+    lodsd                    ; eax = ctx->index
+upd_l0:
+    cmp    eax, ebp          ; buffer full?
+    jne    upd_l1
+    call   SHA3_Transform    ; compress, expects ctx->state in esi
+    xor    eax, eax          ; index = 0
+upd_l1:
+    mov    dl, [ebx]         ; absorb byte
+    inc    ebx    
+    xor    byte[esi+eax], dl
+    inc    eax               ; increase index
+    loop   upd_l0
+    pop    edi
+    stosd
+upd_l2:
     popad
     ret
   
@@ -103,35 +118,18 @@ upd_l02:
 ; ***********************************************
 _SHA3_Finalx:
     pushad
-
-    mov    ebx, [esp+32+8] ; ctx
-    mov    edi, [esp+32+4] ; dgst
-    
-    mov    eax, [ebx+buflen]
-    mov    ecx, [ebx+index ]
-    lea    esi, [ebx+buffer]
-    ; ctx->buffer[ctx->index++] = 6;
-    mov    byte[esi+ecx], 6
-    inc    ecx
-    ; while (ctx->index < ctx->buflen) {
-    ;   ctx->buffer[ctx->index++] = 0;
-    ; }
-fin_l00:
-    cmp    ecx, eax
-    jae    fin_l01
-    
-    mov    byte[esi+ecx], 0
-    inc    ecx
-    jmp    fin_l00
-fin_l01:
-    ; ctx->buffer[ctx->buflen-1] |= 0x80;
-    or    byte[esi+eax-1], 80h
-    ; SHA3_Transform (ctx);
-    call   SHA3_Transform
-    ; memcpy (dgst, ctx->state, ctx->dgstlen);
-    mov    ecx, [ebx+outlen]
-    lea    esi, [ebx+state ]
-    rep    movsb
+    mov    esi, [esp+32+8]      ; esi=ctx
+    mov    ebx, esi
+    lodsd
+    xchg   ecx, eax             ; edx=ctx->outlen
+    lodsd
+    xchg   edx, eax             ; ecx=ctx->buflen
+    lodsd                       ; eax=ctx->index
+    xor    byte[esi+eax], 6     ; ctx->state.v8[ctx->index] ^= 6;
+    xor    byte[esi+edx-1], 80h ; ctx->state.v8[ctx->buflen-1] |= 0x80;
+    call   SHA3_Transform       ; SHA3_Transform (ctx->state);
+    mov    edi, [esp+32+4]      ; edi=out
+    rep    movsb                ; memcpy (out, ctx->state.v8, ctx->outlen);
     popad
     ret
 
@@ -145,7 +143,6 @@ fin_l01:
 
 struc SHA3_WS
   bc   resq 5
-  rnds resd 1
 endstruc
 
 ; rotate mm0 left by bits in eax
@@ -190,28 +187,14 @@ rc_l02:
 ;
 ; SHA3_Transform (SHA3_CTX*);
 ;
+; expects ctx->state in esi
 ; ***********************************************
 SHA3_Transform:
     pushad
     
     ; set up workspace
     sub    esp, SHA3_WS_size
-    
-    mov    eax, [ebx+rounds]
-    mov    [esp+rnds], eax
-    
-    lea    esi, [ebx+buffer]
-    lea    edi, [ebx+state ]
-    mov    ecx, [ebx+buflen]
-s3_l01:
-    lodsb
-    xor    al, [edi]
-    stosb
-    dec    ecx
-    jnz    s3_l01
-    
-    lea    _st, [ebx+state]
-    lea    _bc, [esp+bc]
+    mov    _bc, esp
     xor    r, r
     
     push   1
@@ -347,7 +330,7 @@ s3_l09:
     movq    [_st], mm4
     
     inc     r
-    cmp     r, [esp+rnds]
+    cmp     r, SHA3_ROUNDS
     jnz     s3_l02
     
     add    esp, SHA3_WS_size

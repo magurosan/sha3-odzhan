@@ -35,20 +35,20 @@
 #define SHA3_ROUNDS             24
 #define SHA3_STATE_LEN          25
 
-#define SHA3_224                 0
 #define SHA3_224_DIGEST_LENGTH  28
+#define SHA3_224                28
 #define SHA3_224_CBLOCK        144
 
-#define SHA3_256                 1
 #define SHA3_256_DIGEST_LENGTH  32
+#define SHA3_256                32
 #define SHA3_256_CBLOCK        136
 
-#define SHA3_384                 2
 #define SHA3_384_DIGEST_LENGTH  48
+#define SHA3_384                48
 #define SHA3_384_CBLOCK        104
 
-#define SHA3_512                 3
 #define SHA3_512_DIGEST_LENGTH  64
+#define SHA3_512                64
 #define SHA3_512_CBLOCK         72
 
 typedef union sha3_st_t {
@@ -58,22 +58,13 @@ typedef union sha3_st_t {
   uint64_t v64[SHA3_STATE_LEN];
 } sha3_st;
 
-typedef union sha3_buf_t {
-  uint8_t  v8[256];
-  uint16_t v16[256/2];
-  uint32_t v32[256/4];
-  uint64_t v64[256/8];
-} sha3_buf;
-
 #pragma pack(push, 1)
 typedef struct _SHA3_CTX {
-  uint32_t index;
   uint32_t outlen;
-  uint32_t rounds;
   uint32_t buflen;
+  uint32_t index;
   
   sha3_st state;
-  sha3_buf buffer;
 } SHA3_CTX;
 #pragma pack(pop)
 

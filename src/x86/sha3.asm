@@ -56,7 +56,6 @@ SHA3_Init proc
 exit_init:
     mov    [ebx+SHA3_CTX.buflen ], eax
     mov    [ebx+SHA3_CTX.outlen ], ecx
-    mov    byte ptr[ebx+SHA3_CTX.rounds ], SHA3_ROUNDS
     popad
     ret
 SHA3_Init endp
