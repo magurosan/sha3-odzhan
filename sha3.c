@@ -93,7 +93,7 @@ void SHA3_Transform (SHA3_CTX *ctx)
       t = bc[0];
     }
 
-    //  Chi
+    // Chi
     for (j=0; j<25; j+=5) {
       for (i=0; i<5; i++) {
         bc[i] = st[j + i];
@@ -102,8 +102,7 @@ void SHA3_Transform (SHA3_CTX *ctx)
         st[j + i] ^= (~bc[(i + 1) % 5]) & bc[(i + 2) % 5];
       }
     }
-    
-    //  Iota
+    // Iota
     st[0] ^= rc(&lfsr);
   }
 }

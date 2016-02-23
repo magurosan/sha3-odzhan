@@ -26,7 +26,6 @@
 ;  STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
 ;  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 ;  POSSIBILITY OF SUCH DAMAGE.
-
 ; -----------------------------------------------
 ; SHA-3 in x86 assembly
 ;
@@ -34,7 +33,7 @@
 ;
 ; Derived/influenced from code by Markku-Juhani O. Saarinen
 ;
-; size: 486 bytes
+; size: 508 bytes
 ;
 ; global calls use cdecl convention
 ;
@@ -126,7 +125,7 @@ _SHA3_Finalx:
     xchg   edx, eax             ; ecx=ctx->buflen
     lodsd                       ; eax=ctx->index
     xor    byte[esi+eax], 6     ; ctx->state.v8[ctx->index] ^= 6;
-    xor    byte[esi+edx-1], 80h ; ctx->state.v8[ctx->buflen-1] |= 0x80;
+    xor    byte[esi+edx-1], 80h ; ctx->state.v8[ctx->buflen-1] ^= 0x80;
     call   SHA3_Transform       ; SHA3_Transform (ctx->state);
     mov    edi, [esp+32+4]      ; edi=out
     rep    movsb                ; memcpy (out, ctx->state.v8, ctx->outlen);
@@ -199,6 +198,22 @@ SHA3_Transform:
     
     push   1
     pop    lfsr
+
+    call   ld_const
+sha3_mod5:
+    db 0, 1, 2, 3, 4, 0, 1, 2, 3, 4
+sha3_piln:
+    db 10, 7,  11, 17, 18, 3, 5,  16, 8,  21, 24, 4 
+    db 15, 23, 19, 13, 12, 2, 20, 14, 22, 9,  6,  1
+sha3_rotc:
+    db 1,  3,  6,  10, 15, 21, 28, 36, 45, 55, 2,  14
+    db 27, 41, 56, 8,  25, 43, 62, 18, 39, 61, 20, 44
+  
+ld_const:
+    pop    eax
+    movd   mm6, eax
+    add    eax, sha3_piln - sha3_mod5
+    movd   mm7, eax
 s3_l02:
     ; Theta
     ; for (i = 0; i < 5; i++)     
@@ -229,13 +244,15 @@ s3_l03:
     xor    i, i
 s3_l04:
     ; t = ROTL64(bc[(i + 1) % 5], 1)
-    movzx  eax, byte [keccakf_mod5 + i + 1]
+    movd   eax, mm6  ; keccakf_mod5
+    movzx  eax, byte [eax + i + 1]
     movq   t, [_bc+8*eax]
     push   1
     pop    eax
     call   rotl64
     ; bc[(i + 4) % 5]
-    mov    al, byte [keccakf_mod5 + i + 4]
+    movd   eax, mm6  ; keccakf_mod5
+    movzx  eax, byte [eax + i + 4]
     pxor   t, [_bc+8*eax]
     ; for (j = 0; j < 25; j += 5)
     xor    j, j
@@ -268,12 +285,14 @@ s3_l05:
     ; for (i = 0; i < 24; i++)
 s3_l06:
     ; j = keccakf_piln[i];
-    movzx  j, byte [keccakf_piln + i]
+    movd   eax, mm7
+    movzx  j, byte [eax + i]
     ; bc[0] = st[j];
     movq   mm5, [_st+8*j]
     movq   [_bc], mm5
     ; st[j] = ROTL64(t, keccakf_rotc[i]);
-    movzx  eax, byte [keccakf_rotc + i]
+    movd   eax, mm7
+    movzx  eax, byte [eax + i + (sha3_rotc - sha3_piln)]
     call   rotl64
     movq   [_st+8*j], t
     movq   t, mm5
@@ -307,9 +326,11 @@ s3_l08:
     xor    i, i
 s3_l09:
     ; st[j + i] ^= (~bc[(i+1)%5]) & bc[(i+2)%5];
-    movzx  eax, byte [keccakf_mod5 + i + 1]
+    movd   eax, mm6  ; keccakf_mod5
+    movzx  eax, byte [eax + i + 1]
     movq   t, [_bc+8*eax]
-    mov    al, byte [keccakf_mod5 + i + 2]
+    movd   eax, mm6  ; keccakf_mod5
+    movzx  eax, byte [eax + i + 2]
     pandn  t, [_bc+8*eax]
     lea    eax, [j+i]
     pxor   t, [_st+8*eax]
@@ -337,13 +358,3 @@ s3_l09:
     popad
     ret
     
-keccakf_rotc:
-  db 1,  3,  6,  10, 15, 21, 28, 36, 45, 55, 2,  14
-  db 27, 41, 56, 8,  25, 43, 62, 18, 39, 61, 20, 44
-
-keccakf_piln:
-  db 10, 7,  11, 17, 18, 3, 5,  16, 8,  21, 24, 4 
-  db 15, 23, 19, 13, 12, 2, 20, 14, 22, 9,  6,  1
-  
-keccakf_mod5:
-  db 0, 1, 2, 3, 4, 0, 1, 2, 3, 4
