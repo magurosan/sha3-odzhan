@@ -112,7 +112,7 @@ void SHA3_Init (SHA3_CTX *ctx, int mdlen)
 {
   uint32_t i;
   
-  ctx->outlen = mdlen/2;
+  ctx->outlen = mdlen;
   ctx->buflen = 200 - (2 * mdlen);
   ctx->index  = 0;
   
