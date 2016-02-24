@@ -33,7 +33,7 @@
 ;
 ; Derived/influenced from code by Markku-Juhani O. Saarinen
 ;
-; size: 508 bytes
+; size: 506 bytes
 ;
 ; global calls use cdecl convention
 ;
@@ -118,7 +118,6 @@ upd_l2:
 _SHA3_Finalx:
     pushad
     mov    esi, [esp+32+8]      ; esi=ctx
-    mov    ebx, esi
     lodsd
     xchg   ecx, eax             ; edx=ctx->outlen
     lodsd
