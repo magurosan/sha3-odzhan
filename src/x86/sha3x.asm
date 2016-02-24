@@ -140,10 +140,6 @@ _SHA3_Finalx:
 %define _st  esi
 %define _bc  edi
 
-struc SHA3_WS
-  bc   resq 5
-endstruc
-
 ; rotate mm0 left by bits in eax
 ; uses mm2, mm3 and mm4
 rotl64:
@@ -192,7 +188,7 @@ SHA3_Transform:
     pushad
     
     ; set up workspace
-    sub    esp, SHA3_WS_size
+    sub    esp, 8*5
     mov    _bc, esp
     xor    r, r
     
@@ -214,7 +210,7 @@ ld_const:
     movd   mm6, eax
     add    eax, sha3_piln - sha3_mod5
     movd   mm7, eax
-s3_l02:
+s3_l2:
     ; Theta
     ; for (i = 0; i < 5; i++)     
     ;   bc[i] = st[i + 0 ] ^ 
@@ -223,7 +219,7 @@ s3_l02:
     ;           st[i + 15] ^ 
     ;           st[i + 20]; 
     xor    i, i
-s3_l03:
+s3_l3:
     movq    t, [_st+8*i+20*8]
     pxor    t, [_st+8*i+15*8]
     pxor    t, [_st+8*i+10*8]
@@ -232,7 +228,7 @@ s3_l03:
     movq    [_bc+8*i        ], t
     inc     i
     cmp     i, 5
-    jnz     s3_l03
+    jnz     s3_l3
       
     ; for (i = 0; i < 5; i++) {
     ;   t = bc[(i + 4) % 5] ^ ROTL64(bc[(i+1)%5], 1);
@@ -242,7 +238,7 @@ s3_l03:
     ; ************************************
     ; for (i = 0; i < 5; i++)
     xor    i, i
-s3_l04:
+s3_l4:
     ; t = ROTL64(bc[(i + 1) % 5], 1)
     movd   eax, mm6  ; keccakf_mod5
     movzx  eax, byte [eax + i + 1]
@@ -256,7 +252,7 @@ s3_l04:
     pxor   t, [_bc+8*eax]
     ; for (j = 0; j < 25; j += 5)
     xor    j, j
-s3_l05:
+s3_l5:
     ; st[j + i] ^= t;
     lea    eax, [j+i]
     movq   mm1, [_st+8*eax]
@@ -264,11 +260,11 @@ s3_l05:
     movq   [_st+8*eax], mm1
     add    j, 5
     cmp    j, 25
-    jnz    s3_l05
+    jnz    s3_l5
     
     inc    i
     cmp    i, 5
-    jnz    s3_l04
+    jnz    s3_l4
             
     ; // Rho Pi
     ; t = st[1];
@@ -283,7 +279,7 @@ s3_l05:
     movq   t, [_st+8]
     xor    i, i
     ; for (i = 0; i < 24; i++)
-s3_l06:
+s3_l6:
     ; j = keccakf_piln[i];
     movd   eax, mm7
     movzx  j, byte [eax + i]
@@ -298,7 +294,7 @@ s3_l06:
     movq   t, mm5
     inc    i
     cmp    i, 24
-    jnz    s3_l06
+    jnz    s3_l6
       
     ; // Chi
     ; for (j = 0; j < 25; j += 5) {
@@ -310,21 +306,21 @@ s3_l06:
     ; *********************************
     ; for (j=0; j<25; j+=5)
     xor    j, j
-s3_l07:
+s3_l7:
     ; for (i=0; i<5; i++)
     xor    i, i
-s3_l08:
+s3_l8:
     ; bc[i] = st[j + i];
     lea    eax, [j+i]
     movq   t, [_st+8*eax]
     movq   [_bc+8*i], t
     inc    i
     cmp    i, 5
-    jnz    s3_l08
+    jnz    s3_l8
         
     ; for (i=0; i<5; i++)
     xor    i, i
-s3_l09:
+s3_l9:
     ; st[j + i] ^= (~bc[(i+1)%5]) & bc[(i+2)%5];
     movd   eax, mm6  ; keccakf_mod5
     movzx  eax, byte [eax + i + 1]
@@ -337,11 +333,11 @@ s3_l09:
     movq   [_st+8*eax], t
     inc    i
     cmp    i, 5
-    jnz    s3_l09
+    jnz    s3_l9
     
     add    j, 5
     cmp    j, 25
-    jnz    s3_l07
+    jnz    s3_l7
            
     ; // Iota
     ; st[0] ^= keccakf_rndc[round];
@@ -352,9 +348,9 @@ s3_l09:
     
     inc     r
     cmp     r, SHA3_ROUNDS
-    jnz     s3_l02
+    jnz     s3_l2
     
-    add    esp, SHA3_WS_size
+    add    esp, 8*5
     popad
     ret
     

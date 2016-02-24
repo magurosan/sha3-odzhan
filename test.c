@@ -139,6 +139,10 @@ void SHA3_string (char *str, char *key, int type)
   printf ("\n%s(\"%s\")\n0x", hdrs[type], str);
   
   SHA3_Init (&ctx, mdlen(type));
+  // prepend a key?
+  if (key!=NULL) {
+    SHA3_Update (&ctx, key, strlen(key));
+  }
   SHA3_Update (&ctx, str, strlen (str));
   SHA3_Final (dgst, &ctx);
   
@@ -204,6 +208,10 @@ void SHA3_file (char fn[], char *key, int type)
     
     SHA3_Init (&ctx, mdlen(type));
     
+    // prepend a key?
+    if (key!=NULL) {
+      SHA3_Update (&ctx, key, strlen(key));
+    }
     while ((len = fread (buf, 1, 4096, fd))!=0) {
       cmp += len;
       if (total > 10000000 && (cmp % 10000000)==0 || cmp==total) {
@@ -242,7 +250,7 @@ void usage (void)
   printf ("\n  -t <type>   Type is 0=SHA3-224, 1=SHA3-256 (default), 2=SHA3-384, 3=SHA3-512");
   printf ("\n  -s <string> Derive SHA3 hash of <string>");
   printf ("\n  -f <file>   Derive SHA3 hash of <file>");
-  //printf ("\n  -k <key>    Create MAC using <key>");
+  printf ("\n  -k <key>    Create MAC using <key>");
   printf ("\n  -x          Run tests\n");
   exit (0);
 }
@@ -252,8 +260,7 @@ int main (int argc, char *argv[])
   char opt;
   int i, test=0, type=1, wc=0;
   char *file=NULL, *str=NULL, *key=NULL;
-  
-  
+
   if (argc==1) {
     if (!run_tests()) {
       printf ("\n  [ sha-3 self-test OK!\n");

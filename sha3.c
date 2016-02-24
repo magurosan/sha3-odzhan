@@ -79,7 +79,7 @@ void SHA3_Transform (SHA3_CTX *ctx)
     }
     for (i=0; i<5; i++) {
       t = bc[(i + 4) % 5] ^ ROTL64(bc[(i + 1) % 5], 1);
-      for (j = 0; j < 25; j += 5) {
+      for (j=0; j<25; j+=5) {
         st[j + i] ^= t;
       }
     }
@@ -151,10 +151,45 @@ void SHA3_Final (void* out, SHA3_CTX* ctx)
 }
 
 // calls SHA-3 once to create MAC of data
-// todo ...
 void sha3_mac (void *in, uint32_t inlen, 
   void *key, uint32_t keylen,
   void *out, uint32_t mdlen)
 {
+  SHA3_CTX ctx;
+  uint32_t i;
   
+  ctx.outlen = mdlen;
+  ctx.buflen = 200 - (2 * mdlen);
+  ctx.index  = keylen;
+  
+  // zero initialize state
+  for (i=0; i<SHA3_STATE_LEN; i++) {
+    ctx.state.v64[i] = 0;
+  }
+  
+  // copy key to state
+  for (i=0; i<keylen; i++) {
+    ctx.state.v8[i] = ((uint8_t*)key)[i];
+  }
+  
+  // update buffer and state
+  for (i=0; i<inlen; i++) {    
+    if (ctx.index == ctx.buflen) {
+      SHA3_Transform (&ctx);
+      ctx.index = 0;
+    }
+    // absorb byte into state
+    ctx.state.v8[ctx.index++] ^= ((uint8_t*)in)[i];
+  }
+  
+  // absorb 3 bits, Keccak uses 1
+  ctx.state.v8[ctx.index] ^= 6;
+  // absorb end bit
+  ctx.state.v8[ctx.buflen-1] ^= 0x80;
+  // update context
+  SHA3_Transform (&ctx);
+  // copy digest to buffer
+  for (i=0; i<ctx.outlen; i++) {
+    ((uint8_t*)out)[i] = ctx.state.v8[i];
+  }
 }
