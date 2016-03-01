@@ -33,7 +33,7 @@
 ;
 ; Derived/influenced from code by Markku-Juhani O. Saarinen
 ;
-; size: 480 bytes
+; size: 469 bytes
 ;
 ; global calls use cdecl convention
 ;
@@ -170,11 +170,7 @@ sha3_mod5:
     db 0, 1, 2, 3, 4, 0, 1, 2, 3, 4
 sha3_piln:
     db 10, 7,  11, 17, 18, 3, 5,  16, 8,  21, 24, 4 
-    db 15, 23, 19, 13, 12, 2, 20, 14, 22, 9,  6,  1
-sha3_rotc:
-    db 1,  3,  6,  10, 15, 21, 28, 36, 45, 55, 2,  14
-    db 27, 41, 56, 8,  25, 43, 62, 18, 39, 61, 20, 44
-  
+    db 15, 23, 19, 13, 12, 2, 20, 14, 22, 9,  6,  1  
 ld_const:
     pop    eax
     movd   mm6, eax
@@ -253,12 +249,17 @@ s3_l5:
     mov    ebp, [_st+8+4]
     xor    i, i
     ; for (i = 0; i < 24; i++)
+    push   i
 s3_l6:
     push   ecx
     ; j = keccakf_piln[i];
     movd   eax, mm7
     movzx  j, byte [eax + i]
-    mov    cl, byte [eax + i + (sha3_rotc - sha3_piln)]
+    mov    eax, [esp+4]
+    lea    ecx, [eax+i+1]
+    mov    [esp+4], ecx
+    and    ecx, 63
+    ;mov    cl, byte [eax + i + (sha3_rotc - sha3_piln)]
     ; st[j] = ROTL64(t, keccakf_rotc[i]);
 s3_l06x:
     add    edx, edx
@@ -274,6 +275,7 @@ s3_l06x:
     inc    i
     cmp    i, 24
     jnz    s3_l6
+    pop    eax
       
     ; // Chi
     ; for (j = 0; j < 25; j += 5) {

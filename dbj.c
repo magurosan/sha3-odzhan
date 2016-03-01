@@ -7,7 +7,7 @@ static u64 ROL(u64 a,u8 n) {
 }
 static u64 L64(const u8*x) {
     u64 r=0,i;
-    FOR(i,8)r|=(u64)x[i]<<8*i;
+    FOR(i,8)r|=(u64)x[i]<<(i<<3);
     return r;
 }
 static void F(u64*s) {
@@ -24,7 +24,7 @@ static void F(u64*s) {
         }
         t=s[1];
         y=r=0;
-        x=1;
+        x=1; // 2 1 2 3 3 0 1 3 1 4 4 0 3 4 3 2 2 0 4 2 4 1 1 0
         FOR(j,24) {
             r+=j+1;
             Y=2*x+3*y;
@@ -48,7 +48,7 @@ static void Keccak(u8 r,const u8*m,u64 n,u8 p,u8*h,u64 d) {
     u8 t[200];
     FOR(i,25)s[i]=0;
     while(n>=r) {
-        FOR(i,r>>3)s[i]^=L64(m+8*i);
+        FOR(i,r>>3)s[i]^=L64(m+(i<<3));
         F(s);
         n-=r;
         m+=r;
@@ -57,9 +57,9 @@ static void Keccak(u8 r,const u8*m,u64 n,u8 p,u8*h,u64 d) {
     FOR(i,n)t[i]=m[i];
     t[i]=p;
     t[r-1]|=128;
-    FOR(i,r>>3)s[i]^=L64(t+8*i);
+    FOR(i,r>>3)s[i]^=L64(t+(i<<3));
     F(s);
-    FOR(i,d)h[i]=s[i>>3]>>8*(i&7);
+    FOR(i,d)h[i]=s[i>>3]>>((i&7)<<3);
 }
 H(sha3256,17,0,32)
 //H(shake128,21,1,168)H(shake256,17,1,136)H(sha3224,18,0,28)H(sha3256,17,0,32)H(sha3384,13,0,48)H(sha3512,9,0,64)
