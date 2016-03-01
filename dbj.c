@@ -31,7 +31,7 @@ static void F(u64*s) {
             x=y;
             y=Y%5;
             Y=s[x+5*y];
-            s[x+5*y]=ROL(t,r%64);
+            s[x+5*y]=ROL(t,r&63);
             t=Y;
         }
         FOR(y,5) {
@@ -48,7 +48,7 @@ static void Keccak(u8 r,const u8*m,u64 n,u8 p,u8*h,u64 d) {
     u8 t[200];
     FOR(i,25)s[i]=0;
     while(n>=r) {
-        FOR(i,r/8)s[i]^=L64(m+8*i);
+        FOR(i,r>>3)s[i]^=L64(m+8*i);
         F(s);
         n-=r;
         m+=r;
@@ -57,9 +57,9 @@ static void Keccak(u8 r,const u8*m,u64 n,u8 p,u8*h,u64 d) {
     FOR(i,n)t[i]=m[i];
     t[i]=p;
     t[r-1]|=128;
-    FOR(i,r/8)s[i]^=L64(t+8*i);
+    FOR(i,r>>3)s[i]^=L64(t+8*i);
     F(s);
-    FOR(i,d)h[i]=s[i/8]>>8*(i%8);
+    FOR(i,d)h[i]=s[i>>3]>>8*(i&7);
 }
 H(sha3256,17,0,32)
 //H(shake128,21,1,168)H(shake256,17,1,136)H(sha3224,18,0,28)H(sha3256,17,0,32)H(sha3384,13,0,48)H(sha3512,9,0,64)
