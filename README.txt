@@ -6,7 +6,7 @@ Certification     FIPS PUB 202
 Digest sizes      arbitrary
 Structure         sponge construction
 
-  Copyright © 2015, 2016 Odzhan. All Rights Reserved.
+  Copyright © 2015, 2016 Odzhan, Peter Ferrie. All Rights Reserved.
 
   Redistribution and use in source and binary forms, with or without
   modification, are permitted provided that the following conditions are
