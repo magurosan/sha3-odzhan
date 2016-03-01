@@ -1,4 +1,4 @@
-;
+
 ;  Copyright © 2015, 2016 Odzhan, Peter Ferrie. All Rights Reserved.
 ;
 ;  Redistribution and use in source and binary forms, with or without
@@ -33,7 +33,7 @@
 ;
 ; Derived/influenced from code by Markku-Juhani O. Saarinen
 ;
-; size: 506 bytes
+; size: 480 bytes
 ;
 ; global calls use cdecl convention
 ;
@@ -133,50 +133,13 @@ _SHA3_Finalx:
 
 %define r    ebp
 %define i    ecx
+%define ih   ch
 %define lfsr edx
 %define j    ebx
 %define t    mm0
 %define _st  esi
 %define _bc  edi
 
-; rotate mm0 left by bits in eax
-; uses mm2, mm3 and mm4
-rotl64:
-    movq   mm2, mm0
-    movd   mm3, eax    ; move count into mm2
-    sub    eax, 64     ; calculate how much to rotate right
-    neg    eax         ; 64 - eax
-    movd   mm4, eax
-    psllq  mm0, mm3    ; shift left by n
-    psrlq  mm2, mm4    ; shift right by 64-n
-    por    mm0, mm2    ; mm0 has the result
-    ret
-
-rc:
-    pxor   mm0, mm0        ; c=0
-    pxor   mm1, mm1        ; 
-    push   1
-    pop    eax             ; i=1
-    movd   mm1, eax
-rc_l00:
-    test   dl, 1           ; (t & 1)
-    jz     rc_l01
-    ; ecx = (i - 1)
-    lea    ecx, [eax-1]
-    movd   mm2, ecx
-    movq   mm3, mm1
-    ; 1ULL << (i - 1)
-    psllq  mm3, mm2
-    pxor   mm0, mm3        ; c ^= 1ULL << (i - 1)
-rc_l01:
-    add    dl, dl          ; t += t
-    jnc    rc_l02
-    xor    dl, 71h
-rc_l02:
-    add    al, al          ; i += i
-    jns    rc_l00
-    ret
-  
 ; ***********************************************
 ;
 ; SHA3_Transform (SHA3_CTX*);
@@ -210,6 +173,8 @@ ld_const:
     add    eax, sha3_piln - sha3_mod5
     movd   mm7, eax
 s3_l2:
+    push   r
+    push   lfsr
     ; Theta
     ; for (i = 0; i < 5; i++)     
     ;   bc[i] = st[i + 0 ] ^ 
@@ -217,16 +182,16 @@ s3_l2:
     ;           st[i + 10] ^ 
     ;           st[i + 15] ^ 
     ;           st[i + 20]; 
-    xor    i, i
+    xor    eax, eax
 s3_l3:
-    movq    t, [_st+8*i+20*8]
-    pxor    t, [_st+8*i+15*8]
-    pxor    t, [_st+8*i+10*8]
-    pxor    t, [_st+8*i+ 5*8]
-    pxor    t, [_st+8*i     ]
-    movq    [_bc+8*i        ], t
-    inc     i
-    cmp     i, 5
+    movq    t, [_st+8*eax+20*8]
+    pxor    t, [_st+8*eax+15*8]
+    pxor    t, [_st+8*eax+10*8]
+    pxor    t, [_st+8*eax+ 5*8]
+    pxor    t, [_st+8*eax     ]
+    movq    [_bc+8*eax        ], t
+    inc     eax
+    cmp     al, 5
     jnz     s3_l3
       
     ; for (i = 0; i < 5; i++) {
@@ -241,22 +206,23 @@ s3_l4:
     ; t = ROTL64(bc[(i + 1) % 5], 1)
     movd   eax, mm6  ; keccakf_mod5
     movzx  eax, byte [eax + i + 1]
-    movq   t, [_bc+8*eax]
-    push   1
-    pop    eax
-    call   rotl64
+    mov    edx, [_bc+8*eax]
+    mov    ebp, [_bc+8*eax+4]
+    add    edx, edx
+    adc    ebp, ebp
+    adc    dl, ih
     ; bc[(i + 4) % 5]
     movd   eax, mm6  ; keccakf_mod5
     movzx  eax, byte [eax + i + 4]
-    pxor   t, [_bc+8*eax]
+    xor    edx, [_bc+8*eax]
+    xor    ebp, [_bc+8*eax+4]
     ; for (j = 0; j < 25; j += 5)
     xor    j, j
 s3_l5:
     ; st[j + i] ^= t;
     lea    eax, [j+i]
-    movq   mm1, [_st+8*eax]
-    pxor   mm1, t
-    movq   [_st+8*eax], mm1
+    xor    [_st+8*eax], edx
+    xor    [_st+8*eax+4], ebp
     add    j, 5
     cmp    j, 25
     jnz    s3_l5
@@ -275,22 +241,28 @@ s3_l5:
     ; }
     ; *************************************
     ; t = st[1]
-    movq   t, [_st+8]
+    mov    edx, [_st+8]
+    mov    ebp, [_st+8+4]
     xor    i, i
     ; for (i = 0; i < 24; i++)
 s3_l6:
+    push   ecx
     ; j = keccakf_piln[i];
     movd   eax, mm7
     movzx  j, byte [eax + i]
-    ; bc[0] = st[j];
-    movq   mm5, [_st+8*j]
-    movq   [_bc], mm5
+    mov    cl, byte [eax + i + (sha3_rotc - sha3_piln)]
     ; st[j] = ROTL64(t, keccakf_rotc[i]);
-    movd   eax, mm7
-    movzx  eax, byte [eax + i + (sha3_rotc - sha3_piln)]
-    call   rotl64
-    movq   [_st+8*j], t
-    movq   t, mm5
+s3_l06x:
+    add    edx, edx
+    adc    ebp, ebp
+    adc    dl, ih
+    loop   s3_l06x
+    ; bc[0] = st[j];
+    xchg   [_st+8*j], edx
+    mov    [_bc], edx
+    xchg   [_st+8*j+4], ebp
+    mov    [_bc+4], ebp
+    pop    ecx
     inc    i
     cmp    i, 24
     jnz    s3_l6
@@ -338,13 +310,41 @@ s3_l9:
     cmp    j, 25
     jnz    s3_l7
            
+    pop    lfsr
+
     ; // Iota
     ; st[0] ^= keccakf_rndc[round];
     movq    mm4, [_st]
-    call    rc
+;;    call    rc
+rc:
+    pxor   mm0, mm0        ; c=0
+    pxor   mm1, mm1        ; 
+    push   1
+    pop    eax             ; i=1
+    movd   mm1, eax
+rc_l00:
+    test   dl, 1           ; (t & 1)
+    jz     rc_l01
+    ; ecx = (i - 1)
+    lea    ecx, [eax-1]
+    movd   mm2, ecx
+    movq   mm3, mm1
+    ; 1ULL << (i - 1)
+    psllq  mm3, mm2
+    pxor   mm0, mm3        ; c ^= 1ULL << (i - 1)
+rc_l01:
+    add    dl, dl          ; t += t
+    jnc    rc_l02
+    xor    dl, 71h
+rc_l02:
+    add    al, al          ; i += i
+    jns    rc_l00
+;;    ret
+  
     pxor    mm4, t
     movq    [_st], mm4
     
+    pop     r
     inc     r
     cmp     r, SHA3_ROUNDS
     jnz     s3_l2
