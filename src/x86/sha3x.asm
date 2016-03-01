@@ -43,8 +43,13 @@
   %include 'sha3x.inc'
 
   %ifndef BIN
+    global SHA3_Initx
     global _SHA3_Initx
+    
+    global SHA3_Updatex
     global _SHA3_Updatex
+    
+    global SHA3_Finalx
     global _SHA3_Finalx
   %endif
   
@@ -53,6 +58,7 @@
 ; SHA3_Init (&ctx, int);
 ;
 ; ***********************************************
+SHA3_Initx:
 _SHA3_Initx:
     pushad
     mov    edi, [esp+32+4]    ; context
@@ -76,6 +82,7 @@ _SHA3_Initx:
 ; SHA3_Update (SHA3_CTX*, void*, uint32_t);
 ;
 ; ***********************************************
+SHA3_Updatex:
 _SHA3_Updatex:
     pushad
     lea    esi, [esp+32+4]
@@ -115,6 +122,7 @@ upd_l2:
 ; SHA3_Final (void*, SHA3_CTX*);
 ;
 ; ***********************************************
+SHA3_Finalx:
 _SHA3_Finalx:
     pushad
     mov    esi, [esp+32+8]      ; esi=ctx
