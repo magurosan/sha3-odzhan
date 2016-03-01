@@ -50,10 +50,6 @@ uint64_t rc (uint8_t *LFSR)
   return c;
 }
 
-const uint8_t keccakf_rotc[24] = 
-{ 1,  3,  6,  10, 15, 21, 28, 36, 45, 55, 2,  14, 
-  27, 41, 56, 8,  25, 43, 62, 18, 39, 61, 20, 44 };
-
 const uint8_t keccakf_piln[24] = 
 { 10, 7,  11, 17, 18, 3, 5,  16, 8,  21, 24, 4, 
   15, 23, 19, 13, 12, 2, 20, 14, 22, 9,  6,  1  };
@@ -62,7 +58,7 @@ const uint8_t keccakf_piln[24] =
 
 void SHA3_Transform (SHA3_CTX *ctx)
 {
-  uint32_t i, j, rnd;
+  uint32_t i, j, rnd, r;
   uint64_t t, bc[5];
   uint64_t *st=(uint64_t*)ctx->state.v64;
   uint8_t lfsr=1;
@@ -86,10 +82,11 @@ void SHA3_Transform (SHA3_CTX *ctx)
 
     // Rho Pi
     t = st[1];
-    for (i=0; i<24; i++) {
+    for (i=0, r=0; i<24; i++) {
+      r += i + 1;
       j = keccakf_piln[i];
       bc[0] = st[j];
-      st[j] = ROTL64(t, keccakf_rotc[i]);
+      st[j] = ROTL64(t, r & 63);
       t = bc[0];
     }
 
@@ -150,7 +147,7 @@ void SHA3_Final (void* out, SHA3_CTX* ctx)
   }
 }
 
-// calls SHA-3 once to create MAC of data
+/** calls SHA-3 once to create MAC of data
 void sha3_mac (void *in, uint32_t inlen, 
   void *key, uint32_t keylen,
   void *out, uint32_t mdlen)
@@ -192,4 +189,4 @@ void sha3_mac (void *in, uint32_t inlen,
   for (i=0; i<ctx.outlen; i++) {
     ((uint8_t*)out)[i] = ctx.state.v8[i];
   }
-}
+}*/
