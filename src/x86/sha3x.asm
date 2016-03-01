@@ -165,17 +165,12 @@ SHA3_Transform:
     push   1
     pop    lfsr
 
-    call   ld_const
+    call   s3_l2
 sha3_mod5:
     db 0, 1, 2, 3, 4, 0, 1, 2, 3, 4
 sha3_piln:
     db 10, 7,  11, 17, 18, 3, 5,  16, 8,  21, 24, 4 
     db 15, 23, 19, 13, 12, 2, 20, 14, 22, 9,  6,  1  
-ld_const:
-    ;pop    eax
-    ;movd   mm6, eax
-    ;add    eax, sha3_piln - sha3_mod5
-    ;movd   mm7, eax
 s3_l2:
     push   r
     push   lfsr
@@ -210,7 +205,6 @@ s3_l4:
     ; t = ROTL64(bc[(i + 1) % 5], 1)
     mov    eax, [esp+2*4]
     push   eax
-    ;movd   eax, mm6  ; keccakf_mod5
     movzx  eax, byte [eax + i + 1]
     mov    edx, [_bc+8*eax]
     mov    ebp, [_bc+8*eax+4]
@@ -257,8 +251,6 @@ s3_l6:
     push   ecx
     ; j = keccakf_piln[i];
     mov    eax, [esp+4*4]
-    ;add    eax, sha3_piln - sha3_mod5
-    ;movd   eax, mm7
     movzx  j, byte [eax + i + (sha3_piln - sha3_mod5)]
     mov    eax, [esp+4]
     lea    ecx, [eax+i+1]
@@ -308,13 +300,11 @@ s3_l8:
     xor    i, i
 s3_l9:
     ; st[j + i] ^= (~bc[(i+1)%5]) & bc[(i+2)%5];
-    mov    eax, [esp+2*4]
-    push   eax
-    ;movd   eax, mm6  ; keccakf_mod5
+    mov    eax, [esp+2*4] ; keccakf_mod5
+    push   eax 
     movzx  eax, byte [eax + i + 1]
     movq   t, [_bc+8*eax]
-    pop    eax
-    ;movd   eax, mm6  ; keccakf_mod5
+    pop    eax            ; keccakf_mod5 
     movzx  eax, byte [eax + i + 2]
     pandn  t, [_bc+8*eax]
     lea    eax, [j+i]
