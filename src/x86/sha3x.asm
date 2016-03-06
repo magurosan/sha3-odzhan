@@ -212,8 +212,7 @@ s3_l4:
     adc    ebp, ebp
     adc    dl, ih
     ; bc[(i + 4) % 5]
-    pop    eax
-    ;movd   eax, mm6  ; keccakf_mod5
+    pop    eax      ; keccakf_mod5
     movzx  eax, byte [eax + i + 4]
     xor    edx, [_bc+8*eax]
     xor    ebp, [_bc+8*eax+4]
